@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    /* Language and Environment */
+    "target": "es6",
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ES6"
+    ],
+    /* Modules */
+    "module": "commonjs" /* Specify what module code is generated. */,
+    "rootDir": "src",
+    "resolveJsonModule": true,
+    /* JavaScript Support */
+    "allowJs": true,
+    "outDir": "dist",
+    "esModuleInterop": true /* Emit additional JavaScript to ease support for importing CommonJS modules.*/,
+    "forceConsistentCasingInFileNames": true /* Ensure that casing is correct in imports. */,
+    /* Type Checking */
+    "strict": true /* Enable all strict type-checking options. */,
+    "noImplicitAny": true /* Enable error reporting for expressions and declarations with an implied `any` type.. */,
+    "skipLibCheck": true /* Skip type checking all .d.ts files. */,
+    "strictPropertyInitialization": false
+  },
+  "include": ["src/**/*"]
+}

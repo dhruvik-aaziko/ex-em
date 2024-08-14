@@ -1,0 +1,12 @@
+{
+  "entryPoints": [
+    "src"
+  ],
+  "out": "docs",
+  "entryPointStrategy": "expand",
+  "exclude": ["**/*.test.ts", "**/node_modules/**", "**/logger/**"],
+  "includeVersion": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeExternals": true
+}
