@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs';
-import {  ERROR_MESSAGES, NUMERICAL, ROUTES, STATUS_CODE, SUCCESS_MESSAGES} from "../../constants";
+import { ERROR_MESSAGES, NUMERICAL, ROUTES, STATUS_CODE, SUCCESS_MESSAGES } from "../../constants";
 import uploadHandler from '../../utils/multer';
 import Controller from "../../interfaces/controller.interface";
 import getconfig from '../../config';
@@ -39,6 +39,8 @@ class exEmController implements Controller {
         this.router.get(`${this.path}/getLast12MonthsReport`, this.getLast12MonthsReport);
         this.router.get(`${this.path}/getPortAnalysis`, this.getPortAnalysis);
         this.router.get(`${this.path}/similarBuyer`, this.similarBuyer);
+
+        //9
     }
 
     private uploadExcelData = async (
@@ -124,7 +126,7 @@ class exEmController implements Controller {
         }
     }
 
-    private getDataByDateRangeAndHsCode = async (        request: Request,
+    private getDataByDateRangeAndHsCode = async (request: Request,
         response: Response,
         next: NextFunction
     ) => {
@@ -229,7 +231,7 @@ class exEmController implements Controller {
             // Check if data was found
             if (!data || data.length === 0) {
                 response.status(STATUS_CODE.NOT_FOUND).send({
-                    message: 'No data found for the given detail.' 
+                    message: 'No data found for the given detail.'
                 });
                 return;
             }
@@ -386,11 +388,18 @@ class exEmController implements Controller {
             ]);
 
             // Send the aggregated data as a response
-            response.status(200).json({
-                success: true,
-                data: data
-            });
+            successMiddleware(
+                {
+                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `em_im`),
+                    data: data
+                },
+                request,
+                response,
+                next
+            );
+
         } catch (error) {
+            logger.error(`There was an issue into data fathimg .: ${error}`);
             next(error);
         }
     }
@@ -507,12 +516,18 @@ class exEmController implements Controller {
 
 
             // Send the aggregated data as a response
-            response.status(200).json({
-                success: true,
-                data: formattedData,
+            successMiddleware(
+                {
+                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `em_im`),
+                    data: formattedData
+                },
+                request,
+                response,
+                next
+            );
 
-            });
         } catch (error) {
+            logger.error(`There was an issue into data fathimg .: ${error}`);
             next(error);
         }
     }
@@ -607,11 +622,18 @@ class exEmController implements Controller {
                 bCountries: data[0]?.countries || []
             };
 
-            response.status(200).json({
-                success: true,
-                data: formattedData
-            });
+            successMiddleware(
+                {
+                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `em_im`),
+                    data: formattedData
+                },
+                request,
+                response,
+                next
+            );
+
         } catch (error) {
+            logger.error(`There was an issue into data fathimg .: ${error}`);
             next(error);
         }
     };
@@ -682,11 +704,18 @@ class exEmController implements Controller {
             }, {});
 
             // Send the response
-            response.status(200).json({
-                success: true,
-                data: formattedData
-            });
+            successMiddleware(
+                {
+                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `em_im`),
+                    data: formattedData
+                },
+                request,
+                response,
+                next
+            );
+
         } catch (error) {
+            logger.error(`There was an issue into data fathimg .: ${error}`);
             next(error);
         }
     }
@@ -746,11 +775,18 @@ class exEmController implements Controller {
             }));
 
             // Send the response
-            response.status(200).json({
-                success: true,
-                data: formattedData
-            });
+            successMiddleware(
+                {
+                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `em_im`),
+                    data: formattedData
+                },
+                request,
+                response,
+                next
+            );
+
         } catch (error) {
+            logger.error(`There was an issue into data fathimg .: ${error}`);
             next(error);
         }
     }
