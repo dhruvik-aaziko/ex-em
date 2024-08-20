@@ -12,121 +12,14 @@ import { MongoService } from '../../utils/mongoService';
 import exEmModel from './exEm.model';
 const { MONGO_DB_EXEM } = getconfig();
 
-class exEmController implements Controller {
+class ControllerService implements Controller {
     public path = `/${ROUTES.EX_EM}`;
     public router = Router();
     public exEm = exEmModel
 
-    constructor() {
-        this.initializeRoutes();
-    }
+    
 
-    private initializeRoutes() {
-
-        this.router.post(
-            `${this.path}/exalUplode`,
-            uploadHandler.fields([
-                { name: "file", maxCount: 1 },
-            ]),
-            this.uploadExcelData
-        );
-
-        this.router.get(`${this.path}/getdata`, this.getDataByDateRangeAndHsCode);
-        this.router.get(`${this.path}/aboutUsGraph`, this.aboutUsGraph);
-        this.router.get(`${this.path}/nexus`, this.companyNexus);
-        this.router.get(`${this.path}/productNexus`, this.productNexus);
-        this.router.get(`${this.path}/mainImportProduct`, this.mainImportProduct);
-        this.router.get(`${this.path}/getLast12MonthsReport`, this.getLast12MonthsReport);
-        this.router.get(`${this.path}/getPortAnalysis`, this.getPortAnalysis);
-        this.router.get(`${this.path}/similarBuyer`, this.similarBuyer);
-
-        //9
-    }
-
-    private uploadExcelData = async (
-        request: Request,
-        response: Response,
-        next: NextFunction
-    ) => {
-        try {
-            const files: any = request.files; // Ensure files are correctly populated from your request
-
-            if (!files || !files.file || files.file.length === 0) {
-                return response.status(400).json({
-                    message: 'No file uploaded. Please upload an Excel file.',
-                });
-            }
-
-            const allowedMimeTypes = [
-                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'application/vnd.ms-excel'
-            ];
-            const file = files.file[0];
-
-            if (!allowedMimeTypes.includes(file.mimetype)) {
-                return response.status(415).json({
-                    message: 'Invalid file type. Please upload an Excel file.',
-                });
-            }
-
-            const filePath = file.path;
-            const workbook = XLSX.readFile(filePath);
-            const sheetName = workbook.SheetNames[0];
-            const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-
-
-
-            if (!Array.isArray(sheetData) || sheetData.length === 0) {
-                return response.status(400).json({
-                    message: 'The Excel file is empty or invalid.',
-                });
-            }
-            console.log(sheetData)
-            const documents = sheetData.map((row: any) => ({
-
-                date: row.date || null,
-                shipmentId: row['shipment id '] ? parseInt(row['shipment id '], 10) : null,
-                hsCode: row['hs code'] ? parseInt(row['hs code'], 10) : null,
-                hsCode_1: row['hs code_1'] ? parseInt(row['hs code_1'], 10) : null,
-                industry: row['indutry'] || null,
-                product: row['prodcut'] || null,
-                bCountry: row['b cntry'] || null,
-                company: row.company || null,
-                dPort: row['D port'] || null,
-                sCountry: row['S cntry'] || null,
-                seller: row.seller || null,
-                sPort: row['s port'] || null,
-                portCode: row['port code'] || null,
-                unit: row.unit || null,
-                qty: typeof row.qty === 'string' ? parseInt(row.qty.replace(/,/g, ''), 10) : row.qty || null,
-                value: typeof row.value === 'string' ? parseFloat(row.value.replace(/[$,]/g, '')) : row.value || null,
-                pricePerUnit: typeof row['price/unit'] === 'string' ? parseFloat(row['price/unit'].replace(/[$,]/g, '')) : row['price/unit'] || null,
-                emptyField: row['__EMPTY'] || '-'
-
-            }));
-
-            console.log('Mapped Documents:', documents); // Log the data to be inserted
-
-            // Batch size for insertion
-            const batchSize = 100; // Adjust as needed
-            for (let i = 0; i < documents.length; i += batchSize) {
-                const batch = documents.slice(i, i + batchSize);
-                const result = await MongoService.insertMany(MONGO_DB_EXEM, this.exEm, { insert: batch });
-                console.log(`Insert Result (Batch ${i / batchSize + 1}):`, result); // Log the result of the insertion
-            }
-
-            return response.status(200).json({
-                message: 'Sheet data has been successfully uploaded and inserted.',
-                data: documents.length
-            });
-
-        } catch (error) {
-            console.error('Error in uploading Excel data:', error);
-            next(error);
-        }
-    }
-
-    private getDataByDateRangeAndHsCode = async (request: Request,
+    public getDataByDateRangeAndHsCode = async (request: Request,
         response: Response,
         next: NextFunction
     ) => {
@@ -163,15 +56,7 @@ class exEmController implements Controller {
                 return;
             }
 
-            successMiddleware(
-                {
-                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `em_im`),
-                    data: data
-                },
-                request,
-                response,
-                next
-            );
+           return data
 
         } catch (error) {
             logger.error(`There was an issue into data fathimg .: ${error}`);
@@ -179,7 +64,7 @@ class exEmController implements Controller {
         }
     };
 
-    private aboutUsGraph = async (
+    public aboutUsGraph = async (
         request: Request,
         response: Response,
         next: NextFunction
@@ -236,15 +121,7 @@ class exEmController implements Controller {
                 return;
             }
 
-            successMiddleware(
-                {
-                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `aboutUsGraph`),
-                    data: data
-                },
-                request,
-                response,
-                next
-            );
+            return data
 
         } catch (error) {
             logger.error(`There was an issue into data fathimg.: ${error}`);
@@ -252,7 +129,7 @@ class exEmController implements Controller {
         }
     };
 
-    private companyNexus = async (
+    public companyNexus = async (
         request: Request,
         response: Response,
         next: NextFunction
@@ -300,16 +177,7 @@ class exEmController implements Controller {
                 }
             ]);
 
-            // Send the aggregated data as a response
-            successMiddleware(
-                {
-                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `companyNexus`),
-                    data: data
-                },
-                request,
-                response,
-                next
-            );
+            return data
 
         } catch (error) {
             logger.error(`There was an issue into data fathimg.: ${error}`);
@@ -319,7 +187,7 @@ class exEmController implements Controller {
 
     }
 
-    private mainImportProduct = async (
+    public mainImportProduct = async (
         request: Request,
         response: Response,
         next: NextFunction
@@ -387,16 +255,7 @@ class exEmController implements Controller {
                 }
             ]);
 
-            // Send the aggregated data as a response
-            successMiddleware(
-                {
-                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `em_im`),
-                    data: data
-                },
-                request,
-                response,
-                next
-            );
+            return data
 
         } catch (error) {
             logger.error(`There was an issue into data fathimg .: ${error}`);
@@ -404,7 +263,7 @@ class exEmController implements Controller {
         }
     }
 
-    private getLast12MonthsReport = async (
+    public getLast12MonthsReport = async (
         request: Request,
         response: Response,
         next: NextFunction
@@ -515,16 +374,7 @@ class exEmController implements Controller {
 
 
 
-            // Send the aggregated data as a response
-            successMiddleware(
-                {
-                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `em_im`),
-                    data: formattedData
-                },
-                request,
-                response,
-                next
-            );
+            return formattedData
 
         } catch (error) {
             logger.error(`There was an issue into data fathimg .: ${error}`);
@@ -532,7 +382,7 @@ class exEmController implements Controller {
         }
     }
 
-    private getPortAnalysis = async (
+    public getPortAnalysis = async (
         request: Request,
         response: Response,
         next: NextFunction
@@ -622,37 +472,31 @@ class exEmController implements Controller {
                 bCountries: data[0]?.countries || []
             };
 
-            successMiddleware(
-                {
-                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `em_im`),
-                    data: formattedData
-                },
-                request,
-                response,
-                next
-            );
-
+            return formattedData
         } catch (error) {
             logger.error(`There was an issue into data fathimg .: ${error}`);
             next(error);
         }
     };
 
-    private productNexus = async (
+    public productNexus = async (
         request: Request,
         response: Response,
         next: NextFunction
     ) => {
         try {
-            const { company, hsCodeLength } = request.body;
+            var { companyName, hsCodeLength=4 } = request.body;
 
-            if (!company || !hsCodeLength) {
+            if (!companyName || !hsCodeLength) {
                 return response.status(400).json({
                     success: false,
                     message: "Company and hsCodeLength are required"
                 });
             }
 
+            if (request.body.hsCodeLength){
+                hsCodeLength=request.body.hsCodeLength
+            }
             // Ensure hsCodeLength is within acceptable bounds
             if (![2, 4, 6, 8].includes(hsCodeLength)) {
                 return response.status(400).json({
@@ -665,7 +509,7 @@ class exEmController implements Controller {
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
                 {
                     $match: {
-                        company: company
+                        company: companyName
                     }
                 },
                 {
@@ -702,17 +546,7 @@ class exEmController implements Controller {
                 acc[item.hsCode] = item.sellers.join(',');
                 return acc;
             }, {});
-
-            // Send the response
-            successMiddleware(
-                {
-                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `em_im`),
-                    data: formattedData
-                },
-                request,
-                response,
-                next
-            );
+            return formattedData
 
         } catch (error) {
             logger.error(`There was an issue into data fathimg .: ${error}`);
@@ -720,7 +554,7 @@ class exEmController implements Controller {
         }
     }
 
-    private similarBuyer = async (
+    public similarBuyer = async (
         request: Request,
         response: Response,
         next: NextFunction
@@ -774,30 +608,13 @@ class exEmController implements Controller {
                 volume: item.volume
             }));
 
-            // Send the response
-            successMiddleware(
-                {
-                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `em_im`),
-                    data: formattedData
-                },
-                request,
-                response,
-                next
-            );
-
+            return formattedData
         } catch (error) {
             logger.error(`There was an issue into data fathimg .: ${error}`);
             next(error);
         }
     }
 
-
-
-
-
 }
 
-
-
-
-export default exEmController;
+export default ControllerService;

@@ -1,6 +1,7 @@
 
 
 import exEmController from './ex_em/exEmController';
+import Fullresponce from './ex_em/exEm.controller.fullResponce';
 /**
  * Array of controller instances for the application.
  * 
@@ -12,6 +13,7 @@ export const initializesAllControllers = [
 
     /* 1. Vendor Controller */
 
-   new exEmController()
+   new exEmController(),
+   new Fullresponce()
     
 ]
