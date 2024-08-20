@@ -29,13 +29,8 @@ class ControllerService implements Controller {
             console.log("Received parameters:", { startDate, endDate, hsCode });
 
             // Validate query parameters
-            if (!hsCode) {
-                response.status(STATUS_CODE.BAD_REQUEST).send({
-                    message: 'Please provide hsCode as a parameter.'
-                });
-                return;
-            }
-
+          
+if(hsCode){
 
             const query: any = { hsCode: hsCode };
 
@@ -55,8 +50,12 @@ class ControllerService implements Controller {
                 });
                 return;
             }
-
-           return data
+            return data
+        }
+        else{
+            return "no data "
+        }
+           
 
         } catch (error) {
             logger.error(`There was an issue into data fathimg .: ${error}`);
