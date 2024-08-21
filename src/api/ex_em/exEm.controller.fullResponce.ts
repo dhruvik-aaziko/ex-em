@@ -46,10 +46,6 @@ class Fullresponce implements Controller {
 
             ]);
 
-
-
-
-
             return successMiddleware(
                 {
                     message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'Dashboard'),

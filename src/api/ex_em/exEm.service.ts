@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs';
-import { ERROR_MESSAGES, NUMERICAL, ROUTES, STATUS_CODE, SUCCESS_MESSAGES } from "../../constants";
+import { EMPTY, ERROR_MESSAGES, NUMERICAL, ROUTES, STATUS_CODE, SUCCESS_MESSAGES } from "../../constants";
 import uploadHandler from '../../utils/multer';
 import Controller from "../../interfaces/controller.interface";
 import getconfig from '../../config';
@@ -17,7 +17,7 @@ class ControllerService implements Controller {
     public router = Router();
     public exEm = exEmModel
 
-    
+
 
     public getDataByDateRangeAndHsCode = async (request: Request,
         response: Response,
@@ -26,42 +26,56 @@ class ControllerService implements Controller {
         try {
             // Extract query parameters from request body
             const { startDate, endDate, hsCode } = request.body;
-            console.log("Received parameters:", { startDate, endDate, hsCode });
+           
+
 
             // Validate query parameters
-          
-if(hsCode){
+            let query = {}
 
-            const query: any = { hsCode: hsCode };
+            if (hsCode) {
 
-            if (startDate && endDate) {
-                query.date = { $gte: startDate, $lte: endDate };
+                query = {
+                    ...query,
+                    $match: {
+                        hsCode: hsCode
+                    }
+                };
+
+                if (startDate != EMPTY && endDate != EMPTY) {
+                    let reqStartDate = new Date(startDate.split('/').reverse().join('/'))
+                    let reqEndDate = new Date(endDate.split('/').reverse().join('/'))
+                    
+
+                    query = {
+                        ...query,
+                        $and: [{
+                            date: {
+                                $gte: reqStartDate, $lte: reqEndDate
+                            }
+                        }
+                        ]
+                    }
+                    
+                }
+
+              
+
+                // Query the database
+                const data = await MongoService.find(MONGO_DB_EXEM, this.exEm, { query });
+
+                return data
+            }
+            else {
+                return "please give hs code "
             }
 
-            console.log("Database query:", query);
-
-            // Query the database
-            const data = await MongoService.find(MONGO_DB_EXEM, this.exEm, { query });
-
-            // Check if data was found
-            if (!data || data.length === 0) {
-                response.status(STATUS_CODE.NOT_FOUND).send({
-                    message: 'No data found for the given parameters.'
-                });
-                return;
-            }
-            return data
-        }
-        else{
-            return "no data "
-        }
-           
 
         } catch (error) {
             logger.error(`There was an issue into data fathimg .: ${error}`);
             next(error);
         }
     };
+    
 
     public aboutUsGraph = async (
         request: Request,
@@ -77,18 +91,11 @@ if(hsCode){
 
             // Validate query parameters
             if (!companyName) {
-                response.status(STATUS_CODE.BAD_REQUEST).send({
-                    message: 'Please provide companyName .'
-                });
-                return;
+                throw new Error(" company Name is requried ")
             }
 
 
             const query: any = { company: companyName };
-
-
-
-            console.log("Database query:", query);
 
 
 
@@ -112,18 +119,11 @@ if(hsCode){
                     }
                 }
             ]);
-            // Check if data was found
-            if (!data || data.length === 0) {
-                response.status(STATUS_CODE.NOT_FOUND).send({
-                    message: 'No data found for the given detail.'
-                });
-                return;
-            }
 
             return data
 
         } catch (error) {
-            logger.error(`There was an issue into data fathimg.: ${error}`);
+            logger.error(`There was an issue into data fathimg  .: ${error}`);
             next(error);
         }
     };
@@ -195,10 +195,7 @@ if(hsCode){
             const { companyName } = request.body;
 
             if (!companyName) {
-                return response.status(400).json({
-                    success: false,
-                    message: "Company name is required"
-                });
+                throw new Error(" company Name is requried ")
             }
 
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
@@ -269,54 +266,33 @@ if(hsCode){
     ) => {
         try {
             const { companyName } = request.body;
-            const year = 2024
-
+    
             if (!companyName) {
-                return response.status(400).json({
-                    success: false,
-                    message: "Company name is required"
-                });
+                throw new Error("Company Name is required");
             }
-
+    
             // Calculate the start and end dates for the last 12 months
             const endDate = new Date();
             const startDate = new Date();
             startDate.setMonth(endDate.getMonth() - 12);
-
-            const startDateStr: string = startDate.toLocaleDateString('en-GB'); // Format: dd/MM/yyyy
-            const endDateStr = endDate.toLocaleDateString('en-GB'); // Format: dd/MM/yyyy
-            console.log(endDateStr, startDateStr);
-
-            const a = startDateStr.toString()
-            const b = endDate.toString()
-
-            console.log(endDate, startDate);
+    
+            logger.info(startDate, endDate);
+    
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
                 {
                     $match: {
                         company: companyName,
                         date: {
-                            $gte: a, $lte: b
+                            $gte: startDate, $lte: endDate
                         }
                     }
                 },
                 {
                     $addFields: {
-                        dateObj: {
-                            $dateFromString: {
-                                dateString: "$date",
-                                format: "%d/%m/%Y"
-                            }
-                        },
                         month: {
                             $dateToString: {
                                 format: "%Y-%m",
-                                date: {
-                                    $dateFromString: {
-                                        dateString: "$date",
-                                        format: "%d/%m/%Y"
-                                    }
-                                }
+                                date: "$date"
                             }
                         }
                     }
@@ -354,15 +330,16 @@ if(hsCode){
                     }
                 }
             ]);
+    
             console.log(data);
-
+    
             // Generate a list of months for comparison
             const months = Array.from({ length: 12 }, (_, i) => {
                 const date = new Date();
                 date.setMonth(date.getMonth() - i);
                 return date.toISOString().slice(0, 7); // Format: yyyy-MM
             }).reverse();
-
+    
             // Map the data to ensure all months are represented
             const formattedData = months.reduce((acc: any, month: string) => {
                 const monthData = data.find((item: any) => item.month === month) || { month, industries: [] };
@@ -370,16 +347,16 @@ if(hsCode){
                 acc[monthName] = monthData.industries;
                 return acc;
             }, {});
-
-
-
-            return formattedData
-
+    
+            return formattedData;
+    
         } catch (error) {
-            logger.error(`There was an issue into data fathimg .: ${error}`);
+            logger.error(`There was an issue with data fetching: ${error}`);
             next(error);
         }
     }
+    
+    
 
     public getPortAnalysis = async (
         request: Request,
@@ -390,20 +367,14 @@ if(hsCode){
             const { companyName } = request.body;
 
             if (!companyName) {
-                return response.status(400).json({
-                    success: false,
-                    message: "Company name is required"
-                });
+                throw new Error(" company Name is requried ")
             }
 
             // Fetch the sCountry from the database based on companyName
             const companyData = await MongoService.findOne(MONGO_DB_EXEM, this.exEm, { query: { company: companyName } });
 
             if (!companyData) {
-                return response.status(404).json({
-                    success: false,
-                    message: "Source country (sCountry) not found for the specified company"
-                });
+                return []
             }
 
             const sCountry = companyData.sCountry;
@@ -484,24 +455,18 @@ if(hsCode){
         next: NextFunction
     ) => {
         try {
-            var { companyName, hsCodeLength=4 } = request.body;
+            var { companyName, hsCodeLength = 4 } = request.body;
 
             if (!companyName || !hsCodeLength) {
-                return response.status(400).json({
-                    success: false,
-                    message: "Company and hsCodeLength are required"
-                });
+                throw new Error(" company Name && hsCode is requried ")
             }
 
-            if (request.body.hsCodeLength){
-                hsCodeLength=request.body.hsCodeLength
+            if (request.body.hsCodeLength) {
+                hsCodeLength = request.body.hsCodeLength
             }
             // Ensure hsCodeLength is within acceptable bounds
             if (![2, 4, 6, 8].includes(hsCodeLength)) {
-                return response.status(400).json({
-                    success: false,
-                    message: "hsCodeLength must be one of the following values: 2, 4, 6, 8"
-                });
+                throw new Error("hsCodeLength must be one of the following values: 2, 4, 6, 8")
             }
 
             // Perform the aggregation query
@@ -562,10 +527,7 @@ if(hsCode){
             const { companyName } = request.body;
 
             if (!companyName) {
-                return response.status(400).json({
-                    success: false,
-                    message: "Company name is required"
-                });
+                throw new Error (" company Name is requried ")
             }
 
             // Perform the aggregation query

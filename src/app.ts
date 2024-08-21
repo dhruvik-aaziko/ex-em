@@ -70,6 +70,7 @@ class App {
     private async InitializeAllRoute() {
         this.app.get('/health', (req, res) => {
             res.status(200).send(' Health Good! ');
+                
         });
 
         initializesAllControllers.forEach((controller: Controller) => {

@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs';
-import { ERROR_MESSAGES, NUMERICAL, ROUTES, STATUS_CODE, SUCCESS_MESSAGES } from "../../constants";
+import { ERROR_MESSAGES, NUMERICAL, ROUTES, STATUS_CODE, SUCCESS_MESSAGES ,EMPTY} from "../../constants";
 import uploadHandler from '../../utils/multer';
 import Controller from "../../interfaces/controller.interface";
 import getconfig from '../../config';
@@ -34,7 +34,7 @@ class exEmController implements Controller {
         this.router.get(`${this.path}/getdata`, this.getDataByDateRangeAndHsCode);
         this.router.get(`${this.path}/aboutUsGraph`, this.aboutUsGraph);
         this.router.get(`${this.path}/nexus`, this.companyNexus);
-        this.router.get(`${this.path}/productNexus`, this.productNexus);
+        this.router.post(`${this.path}/productNexus`, this.productNexus);
         this.router.get(`${this.path}/mainImportProduct`, this.mainImportProduct);
         this.router.get(`${this.path}/getLast12MonthsReport`, this.getLast12MonthsReport);
         this.router.get(`${this.path}/getPortAnalysis`, this.getPortAnalysis);
@@ -84,7 +84,8 @@ class exEmController implements Controller {
             console.log(sheetData)
             const documents = sheetData.map((row: any) => ({
 
-                date: row.date || null,
+                date: typeof row.date === 'string' ? new Date(row.date.split('/').reverse().join('-')) : null,
+                // date: row.date || null,
                 shipmentId: row['shipment id '] ? parseInt(row['shipment id '], 10) : null,
                 hsCode: row['hs code'] ? parseInt(row['hs code'], 10) : null,
                 hsCode_1: row['hs code_1'] ? parseInt(row['hs code_1'], 10) : null,
@@ -158,7 +159,7 @@ class exEmController implements Controller {
             // Check if data was found
             if (!data || data.length === 0) {
                 response.status(STATUS_CODE.NOT_FOUND).send({
-                    message: 'No data found for the given parameters.'
+                    message: 'No data found for the given parameters.',startDate, endDate,
                 });
                 return;
             }
@@ -185,33 +186,41 @@ class exEmController implements Controller {
         next: NextFunction
     ) => {
         try {
-
-            // Extract query parameters from request body 
-
-            const { companyName } = request.body;
-
-
+            // Extract query parameters from request body
+            const { companyName, endDate, startDate } = request.body;
+    
             // Validate query parameters
             if (!companyName) {
                 response.status(STATUS_CODE.BAD_REQUEST).send({
-                    message: 'Please provide companyName .'
+                    message: 'Please provide companyName.'
                 });
                 return;
             }
-
-
-            const query: any = { company: companyName };
-
-
-
-            console.log("Database query:", query);
-
-
-
+    
+            // Convert to Date objects
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+    
+            // Validate date range
+            if (start > end) {
+                response.status(STATUS_CODE.BAD_REQUEST).send({
+                    message: 'startDate should be less than or equal to endDate.'
+                });
+                return;
+            }
+    
+            // Debugging output
+            console.log('Start Date:', start);
+            console.log('End Date:', end);
+    
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
                 {
                     $match: {
-                        company: companyName
+                        company: companyName,
+                        date: {
+                            $gte: start,
+                            $lte: end
+                        }
                     }
                 },
                 {
@@ -228,6 +237,7 @@ class exEmController implements Controller {
                     }
                 }
             ]);
+    
             // Check if data was found
             if (!data || data.length === 0) {
                 response.status(STATUS_CODE.NOT_FOUND).send({
@@ -235,7 +245,7 @@ class exEmController implements Controller {
                 });
                 return;
             }
-
+    
             successMiddleware(
                 {
                     message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `aboutUsGraph`),
@@ -245,12 +255,13 @@ class exEmController implements Controller {
                 response,
                 next
             );
-
+    
         } catch (error) {
-            logger.error(`There was an issue into data fathimg.: ${error}`);
+            logger.error(`There was an issue fetching data: ${error}`);
             next(error);
         }
     };
+    
 
     private companyNexus = async (
         request: Request,
@@ -265,21 +276,21 @@ class exEmController implements Controller {
             };
 
             // Add additional filters if they are provided
-            if (hsCode) {
-                matchConditions.hsCode = hsCode;
-            }
+            // if (hsCode) {
+            //     matchConditions.hsCode = hsCode;
+            // }
 
-            if (year) {
-                const startDate = (`01-01-${year}`);
-                const endDate = (`31-12-${year}`);
-                console.log(endDate, startDate);
+            // if (year) {
+            //     const startDate = (`01-01-${year}`);
+            //     const endDate = (`31-12-${year}`);
+            //     console.log(endDate, startDate);
 
-                matchConditions.date = { $gte: startDate, $lte: endDate };
-            }
+            //     matchConditions.date = { $gte: startDate, $lte: endDate };
+            // }
 
-            if (productName) {
-                matchConditions.product = productName;
-            }
+            // if (productName) {
+            //     matchConditions.product = productName;
+            // }
 
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
                 {
@@ -410,8 +421,9 @@ class exEmController implements Controller {
         next: NextFunction
     ) => {
         try {
-            const { companyName } = request.body;
+            let { companyName } = request.body;
             const year = 2024
+            companyName= "H&m"
 
             if (!companyName) {
                 return response.status(400).json({
