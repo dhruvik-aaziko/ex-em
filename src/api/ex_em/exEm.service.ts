@@ -355,8 +355,6 @@ class ControllerService implements Controller {
             next(error);
         }
     }
-    
-    
 
     public getPortAnalysis = async (
         request: Request,
