@@ -5,7 +5,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 
 const noteContaceInfoSchema: Schema = new mongoose.Schema({
-   comapnyName:{type:String},
+    companyName:{type:String},
    conatctInfo:{type:String},
    notes:{type:String}
 

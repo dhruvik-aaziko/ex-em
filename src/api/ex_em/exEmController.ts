@@ -11,6 +11,7 @@ import logger from '../../logger';
 import { MongoService } from '../../utils/mongoService';
 import noteContaceInfoModel from './noteContaceInfo'
 import exEmModel from './exEm.model';
+import exEmTry from './exEm2.model'
 
 const { MONGO_DB_EXEM } = getconfig();
 
@@ -19,6 +20,7 @@ class exEmController implements Controller {
     public router = Router();
     public exEm = exEmModel
     public noteContaceInfo = noteContaceInfoModel
+    public exEm2 = exEmTry
 
 
     constructor() {
@@ -54,8 +56,8 @@ class exEmController implements Controller {
         //note
 
         // this.router.post(`${this.path}/createContactNotes2`, this.createContactNotes2);
-        this.router.post(`${this.path}/getCreateContactNotes`, this.getCreateContactNotes);
-        this.router.post(`${this.path}/ContactNotes`, this.contactNotes);
+        this.router.post(`${this.path}/getContactNotes`, this.getContactNotes);
+        this.router.post(`${this.path}/createContactNotes`, this.createContactNotes);
 
 
     }
@@ -116,9 +118,9 @@ class exEmController implements Controller {
                 sPort: row['s port'] || null,
                 portCode: row['port code'] || null,
                 unit: row.unit || null,
-                qty: typeof row.qty === 'string' ? parseInt(row.qty.replace(/,/g, ''), 10) : row.qty || null,
-                value: typeof row.value === 'string' ? parseFloat(row.value.replace(/[$,]/g, '')) : row.value || null,
-                pricePerUnit: typeof row['price/unit'] === 'string' ? parseFloat(row['price/unit'].replace(/[$,]/g, '')) : row['price/unit'] || null,
+                qty: typeof row.qty === 'string' ? parseInt(row.qty.replace(/,/g, ''), 10) : row.qty || NUMERICAL.ZERO,
+                value: typeof row.value === 'string' ? parseFloat(row.value.replace(/[$,]/g, '')) : row.value || NUMERICAL.ZERO,
+                pricePerUnit: typeof row['price/unit'] === 'string' ? parseFloat(row['price/unit'].replace(/[$,]/g, '')) : row['price/unit'] || NUMERICAL.ZERO,
                 emptyField: row['__EMPTY'] || '-',
                 notes: '-',
                 contactInfo: ''
@@ -131,7 +133,7 @@ class exEmController implements Controller {
             const batchSize = 100; // Adjust as needed
             for (let i = 0; i < documents.length; i += batchSize) {
                 const batch = documents.slice(i, i + batchSize);
-                const result = await MongoService.insertMany(MONGO_DB_EXEM, this.exEm, { insert: batch });
+                const result = await MongoService.insertMany(MONGO_DB_EXEM, this.exEm2, { insert: batch });
                 console.log(`Insert Result (Batch ${i / batchSize + 1}):`, result); // Log the result of the insertion
             }
 
@@ -145,6 +147,7 @@ class exEmController implements Controller {
             next(error);
         }
     }
+    
 
 
 
@@ -231,9 +234,7 @@ class exEmController implements Controller {
                 return;
             }
 
-            // Debugging output
-            console.log('Start Date:', start);
-            console.log('End Date:', end);
+            // Debugging output and aggrigration 
 
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
                 {
@@ -1025,7 +1026,7 @@ class exEmController implements Controller {
         }
     };
 
-    private contactNotes = async (
+    private createContactNotes = async (
         request: Request,
         response: Response,
         next: NextFunction
@@ -1149,49 +1150,49 @@ class exEmController implements Controller {
     
     
 
-    private createContactNotes2 = async (
-        request: Request,
-        response: Response,
-        next: NextFunction
-    ) => {
-        try {
-            // Extract query parameters from request body
+    // private createContactNotes2 = async (
+    //     request: Request,
+    //     response: Response,
+    //     next: NextFunction
+    // ) => {
+    //     try {
+    //         // Extract query parameters from request body
 
-            const { companyName, notes, conatctInfo } = request.body;  // Destructure notes and contactInfo from request body
-
-
+    //         const { companyName, notes, conatctInfo } = request.body;  // Destructure notes and contactInfo from request body
 
 
-            // Update the document with the provided fields
-            const updatedOrder = await MongoService.create(
-                MONGO_DB_EXEM,
-                this.noteContaceInfo,
-                {
-                    insert: {
-                        companyName: companyName,
-                        notes: notes,
-                        conatctInfo: conatctInfo
 
-                    }
 
-                }
-            );
+    //         // Update the document with the provided fields
+    //         const updatedOrder = await MongoService.create(
+    //             MONGO_DB_EXEM,
+    //             this.noteContaceInfo,
+    //             {
+    //                 insert: {
+    //                     companyName: companyName,
+    //                     notes: notes,
+    //                     conatctInfo: conatctInfo
 
-            // Check if the document was found and updated
-            if (!updatedOrder) {
-                return response.status(404).send({ message: "Order not found." });
-            }
+    //                 }
 
-            // Send the updated order in the response
-            response.send(updatedOrder);
+    //             }
+    //         );
 
-        } catch (error) {
-            // Pass the error to the next middleware (for error handling)
-            next(error);
-        }
-    }
+    //         // Check if the document was found and updated
+    //         if (!updatedOrder) {
+    //             return response.status(404).send({ message: "Order not found." });
+    //         }
 
-    private getCreateContactNotes = async (
+    //         // Send the updated order in the response
+    //         response.send(updatedOrder);
+
+    //     } catch (error) {
+    //         // Pass the error to the next middleware (for error handling)
+    //         next(error);
+    //     }
+    // }
+
+    private getContactNotes = async (
         request: Request,
         response: Response,
         next: NextFunction
