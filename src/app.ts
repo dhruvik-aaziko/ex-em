@@ -95,17 +95,7 @@ class App {
             console.log(`App listening on the PORT :: --->> ${PORT}`);
         });
 
-        /* Agenda setup */
-        (async function () {
-            await agenda.start();
-
-            // Schedule job for next day for notification
-            const jobName = AGENDA_JOB_CONSTANT.JOB_NAME_OBJ.NOTIFICATION;
-            const jobDateStr = moment().add(1, 'days').startOf('day').toDate();
-
-            await agenda.cancel({ name: jobName });
-            await agenda.schedule(jobDateStr, jobName, {});
-        })();
+    
     }
 }
 

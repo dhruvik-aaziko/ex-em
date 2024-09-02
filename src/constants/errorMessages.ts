@@ -6,6 +6,7 @@ export = Object.freeze({
   EMAIL_ALREADY_TAKEN: 'Email already taken',
   NOT_VALID_OTP: 'Provied OTP is not valid or expired',
   EMAIL_NOT_VERIFIED: "Please verify your account first with otp sent to your email or phone",
+  DEACTIVE_USER: "Your activeStatus is deActive Please contact your administrator",
 
   CURRENT_PASSWORD_NOT_MATCH : 'Current Password does not match',
   PASSWORD_NOT_MATCH: 'Enter Valid Password',
@@ -22,6 +23,8 @@ export = Object.freeze({
   YO_CANT_QUOTE : 'You can not Quote this LSQ. because Quote limit over.',
 
   COMMON: {
+    STRING: 'The :attribute must be a string.',
+    ALREADY_CREATED: ':attribute already Created',
     NOT_FOUND: ':attribute is Not found',
     NOT_VALID: ':attribute is Not Valid',
     REQUIRED: 'The :attribute field is required.',

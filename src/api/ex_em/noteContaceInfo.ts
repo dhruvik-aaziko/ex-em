@@ -6,8 +6,9 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 const noteContaceInfoSchema: Schema = new mongoose.Schema({
     companyName:{type:String},
-   conatctInfo:{type:String},
-   notes:{type:String}
+   conatctInfo:{type:Schema.Types.Mixed},
+   notes:{type:Schema.Types.Mixed},
+   link:{type:Schema.Types.Mixed}
 
    // emptyField: {type:Schema.Types.Mixed, default: '-' } // Handling "__EMPTY" field
 },

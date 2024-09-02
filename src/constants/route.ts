@@ -2,6 +2,7 @@ import { EVENTS } from ".";
 
 
 export = Object.freeze({
+  ADMIN: 'admin',
   AUTH: 'auth',
   USER: 'users',
   COMPANY_MASTER : 'companyMaster',
@@ -16,6 +17,7 @@ export = Object.freeze({
  
   EX_EM:'exem',
   EX_EM_FULLRESPONCE:'fullResponce',
+  CONTACT_INFO:'contactInfo',
 
   DASHBOARD :'dashboard',
   COMPANY:'company',

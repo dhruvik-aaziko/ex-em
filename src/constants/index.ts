@@ -21,7 +21,9 @@ import PRODUCT_INQUIRY_CONSTANT from "./productInquiryConstant";
 import ORDER_CONSTANT from "./orderConstant";
 import LSQ_CONSTANT from "./lsqConstant";
 import EVENT_CONSTANT from './eventConstant';
+import VALID_ADMIN_ROLE_PERMISOON from "./validAdminRolePermisson";
 
+const PERMISSIONS = VALID_ADMIN_ROLE_PERMISOON.PERMISSIONS;
 const exportObject = Object.freeze({ 
     ENVIRONMENT,
     AGENDA_JOB_CONSTANT,
@@ -29,6 +31,8 @@ const exportObject = Object.freeze({
     ERROR_MESSAGES,
     STATUS_CODE,
     NUMERICAL,
+    PERMISSIONS,
+    
     REDIS,
     SOCKET,
     EVENTS,

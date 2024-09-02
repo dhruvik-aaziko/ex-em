@@ -2,11 +2,10 @@ import { Router, Request, Response, NextFunction } from 'express';
 import XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs';
-import { EMPTY, ERROR_MESSAGES, NUMERICAL, ROUTES, STATUS_CODE, SUCCESS_MESSAGES } from "../../constants";
+import { EMPTY, ERROR_MESSAGES, NUMERICAL, ROUTES,   SUCCESS_MESSAGES } from "../../constants";
 import uploadHandler from '../../utils/multer';
 import Controller from "../../interfaces/controller.interface";
 import getconfig from '../../config';
-import { successMiddleware } from '../../middleware/response.middleware';
 import logger from '../../logger';
 import { MongoService } from '../../utils/mongoService';
 import exEmModel from './exEm.model';
@@ -25,49 +24,47 @@ class ControllerService implements Controller {
     ) => {
         try {
             // Extract query parameters from request body
-            const { startDate, endDate, hsCode } = request.body;
-           
+            const { companyName, startDate, endDate, hsCode } = request.body;
 
 
             // Validate query parameters
-            let query = {}
+            if (!companyName) {
+                return 'Please provide companyname.'
+            }
 
-            if (hsCode) {
 
-                query = {
-                    ...query,
-                    $match: {
-                        hsCode: hsCode
-                    }
-                };
+            const query: any = { buyer: companyName };
 
-                if (startDate != EMPTY && endDate != EMPTY) {
-                    let reqStartDate = new Date(startDate.split('/').reverse().join('/'))
-                    let reqEndDate = new Date(endDate.split('/').reverse().join('/'))
-                    
+            if (startDate && endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);   
 
-                    query = {
-                        ...query,
-                        $and: [{
-                            date: {
-                                $gte: reqStartDate, $lte: reqEndDate
-                            }
-                        }
-                        ]
-                    }
-                    
+
+                if (start > end) {
+                    return 'startDate should be less than or equal to endDate.'
                 }
 
-              
-
-                // Query the database
-                const data = await MongoService.find(MONGO_DB_EXEM, this.exEm, { query });
-
-                return data
+                query.date = {
+                    $gte: start,
+                    $lte: end
+                };
             }
-            else {
-                return "please give hs code "
+
+            if (hsCode) {
+                query.hsCode_1 = hsCode
             }
+
+         
+
+            // Query the database
+            const data = await MongoService.find(MONGO_DB_EXEM, this.exEm, { query });
+
+            // Check if data was found
+
+
+
+            return data
+
 
 
         } catch (error) {
@@ -75,7 +72,8 @@ class ControllerService implements Controller {
             next(error);
         }
     };
-    
+
+
 
     public aboutUsGraph = async (
         request: Request,
@@ -83,27 +81,42 @@ class ControllerService implements Controller {
         next: NextFunction
     ) => {
         try {
-
-            // Extract query parameters from request body 
-
-            const { companyName } = request.body;
-
+            // Extract query parameters from request body
+            const { companyName, endDate, startDate, hsCode } = request.body;
 
             // Validate query parameters
             if (!companyName) {
-                throw new Error(" company Name is requried ")
+                return 'Please provide companyname.'
             }
 
+            // Initialize query object
+            const matchQuery: any = {
+                buyer: companyName
+            };
 
-            const query: any = { company: companyName };
+            if (hsCode) {
+                matchQuery.hsCode_1 = hsCode
+            }
+            // Conditionally add date range filter if both startDate and endDate are provided
+            if (startDate && endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
 
 
+                if (start > end) {
+                    return 'startDate should be less than or equal to endDate.'
+                }
 
+                matchQuery.date = {
+                    $gte: start,
+                    $lte: end
+                };
+            }
+
+            // Aggregation
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
                 {
-                    $match: {
-                        company: companyName
-                    }
+                    $match: matchQuery
                 },
                 {
                     $group: {
@@ -120,11 +133,15 @@ class ControllerService implements Controller {
                 }
             ]);
 
+
+
+
             return data
 
+
         } catch (error) {
-            logger.error(`There was an issue into data fathimg  .: ${error}`);
-            next(error);
+            logger.error(`There was an issue fetching data: ${error}`);
+            return next(error);
         }
     };
 
@@ -135,23 +152,28 @@ class ControllerService implements Controller {
     ) => {
         try {
             const { companyName, hsCode, year, productName } = request.body;
-
+            if (!companyName) {
+                return 'Please provide companyname.'
+            }
             const matchConditions: any = {
                 company: companyName
             };
 
             // Add additional filters if they are provided
             if (hsCode) {
-                matchConditions.hsCode = hsCode;
+                matchConditions.hsCode_1 = hsCode;
             }
 
+            
             if (year) {
-                const startDate = (`01-01-${year}`);
-                const endDate = (`31-12-${year}`);
-                console.log(endDate, startDate);
+                const startDate = new Date(`${year}-01-01T00:00:00.000Z`);
+                const endDate = new Date(`${year}-12-31T23:59:59.999Z`);
+
+                
 
                 matchConditions.date = { $gte: startDate, $lte: endDate };
             }
+
 
             if (productName) {
                 matchConditions.product = productName;
@@ -176,6 +198,7 @@ class ControllerService implements Controller {
                 }
             ]);
 
+            // Send the aggregated data as a response
             return data
 
         } catch (error) {
@@ -191,24 +214,52 @@ class ControllerService implements Controller {
         response: Response,
         next: NextFunction
     ) => {
+        
         try {
-            const { companyName } = request.body;
+            const { companyName, startDate, endDate, hsCode } = request.body;
 
+            // Validate required parameter
             if (!companyName) {
-                throw new Error(" company Name is requried ")
+                return "Company name is required"
+
             }
 
+            // Initialize the match query object
+            const matchQuery: any = {
+                company: companyName
+            };
+
+            if (hsCode) {
+                matchQuery.hsCode_1 = hsCode
+            }
+            // Conditionally add date range filter if both startDate and endDate are provided
+            if (startDate && endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+
+
+
+                if (start > end) {
+                    return "startDate should be less than or equal to endDate."
+
+                }
+
+                matchQuery.date = {
+                    $gte: start,
+                    $lte: end
+                };
+            }
+
+            // Aggregation pipeline
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
                 {
-                    $match: {
-                        company: companyName
-                    }
+                    $match: matchQuery
                 },
                 {
                     $group: {
                         _id: {
                             product: "$product",
-                            hsCode: "$hsCode"
+                            hsCode: "$hsCode_1"
                         },
                         totalValue: { $sum: "$value" }
                     }
@@ -254,10 +305,10 @@ class ControllerService implements Controller {
             return data
 
         } catch (error) {
-            logger.error(`There was an issue into data fathimg .: ${error}`);
+            logger.error(`There was an issue fetching data: ${error}`);
             next(error);
         }
-    }
+    };
 
     public getLast12MonthsReport = async (
         request: Request,
@@ -266,22 +317,22 @@ class ControllerService implements Controller {
     ) => {
         try {
             const { companyName } = request.body;
-    
+
             if (!companyName) {
-                throw new Error("Company Name is required");
+                return "Company Name is required";
             }
-    
+
             // Calculate the start and end dates for the last 12 months
             const endDate = new Date();
             const startDate = new Date();
             startDate.setMonth(endDate.getMonth() - 12);
-    
+
             logger.info(startDate, endDate);
-    
+
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
                 {
                     $match: {
-                        company: companyName,
+                        buyer: companyName,
                         date: {
                             $gte: startDate, $lte: endDate
                         }
@@ -330,16 +381,16 @@ class ControllerService implements Controller {
                     }
                 }
             ]);
-    
-            console.log(data);
-    
+
+           
+
             // Generate a list of months for comparison
             const months = Array.from({ length: 12 }, (_, i) => {
                 const date = new Date();
                 date.setMonth(date.getMonth() - i);
                 return date.toISOString().slice(0, 7); // Format: yyyy-MM
             }).reverse();
-    
+
             // Map the data to ensure all months are represented
             const formattedData = months.reduce((acc: any, month: string) => {
                 const monthData = data.find((item: any) => item.month === month) || { month, industries: [] };
@@ -347,9 +398,9 @@ class ControllerService implements Controller {
                 acc[monthName] = monthData.industries;
                 return acc;
             }, {});
-    
+
             return formattedData;
-    
+
         } catch (error) {
             logger.error(`There was an issue with data fetching: ${error}`);
             next(error);
@@ -362,28 +413,57 @@ class ControllerService implements Controller {
         next: NextFunction
     ) => {
         try {
-            const { companyName } = request.body;
+            const { companyName, startDate, endDate, hsCode } = request.body;
 
+            // Validate required parameter
             if (!companyName) {
-                throw new Error(" company Name is requried ")
+                return "Company name is required"
+
             }
+
 
             // Fetch the sCountry from the database based on companyName
             const companyData = await MongoService.findOne(MONGO_DB_EXEM, this.exEm, { query: { company: companyName } });
 
             if (!companyData) {
-                return []
+                return "Source country (sCountry) not found for the specified company"
+
             }
 
             const sCountry = companyData.sCountry;
 
+            // Initialize the match query object
+            const matchQuery: any = {
+                company: companyName,
+                sCountry: sCountry
+            };
+
+            if (hsCode) {
+                matchQuery.hsCode_1 = hsCode
+            }
+            // Conditionally add date range filter if both startDate and endDate are provided
+            if (startDate && endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+
+                // Validate date objects
+
+
+                if (start > end) {
+                    return "startDate should be less than or equal to endDate."
+
+                }
+
+                matchQuery.date = {
+                    $gte: start,
+                    $lte: end
+                };
+            }
+
             // Aggregate the data
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
                 {
-                    $match: {
-                        company: companyName,
-                        sCountry: sCountry
-                    }
+                    $match: matchQuery
                 },
                 {
                     $group: {
@@ -441,80 +521,15 @@ class ControllerService implements Controller {
             };
 
             return formattedData
+
+
         } catch (error) {
-            logger.error(`There was an issue into data fathimg .: ${error}`);
+            logger.error(`There was an issue fetching data: ${error}`);
             next(error);
         }
     };
 
-    public productNexus = async (
-        request: Request,
-        response: Response,
-        next: NextFunction
-    ) => {
-        try {
-            var { companyName, hsCodeLength = 4 } = request.body;
 
-            if (!companyName || !hsCodeLength) {
-                throw new Error(" company Name && hsCode is requried ")
-            }
-
-            if (request.body.hsCodeLength) {
-                hsCodeLength = request.body.hsCodeLength
-            }
-            // Ensure hsCodeLength is within acceptable bounds
-            if (![2, 4, 6, 8].includes(hsCodeLength)) {
-                throw new Error("hsCodeLength must be one of the following values: 2, 4, 6, 8")
-            }
-
-            // Perform the aggregation query
-            const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
-                {
-                    $match: {
-                        company: companyName
-                    }
-                },
-                {
-                    $addFields: {
-                        hsCodeStr: { $toString: "$hsCode" }, // Convert hsCode to string
-                        hsCodePrefix: {
-                            $substr: [{ $toString: "$hsCode" }, 0, hsCodeLength] // Extract prefix based on length
-                        },
-                        hsCodeLengthCheck: { $strLenCP: { $toString: "$hsCode" } } // Length of hsCode
-                    }
-                },
-                {
-                    $match: {
-                        hsCodeLengthCheck: { $eq: hsCodeLength } // Ensure length matches hsCodeLength
-                    }
-                },
-                {
-                    $group: {
-                        _id: "$hsCodePrefix",
-                        sellers: { $addToSet: "$seller" }
-                    }
-                },
-                {
-                    $project: {
-                        _id: 0,
-                        hsCode: "$_id",
-                        sellers: 1
-                    }
-                }
-            ]);
-
-            // Format the response
-            const formattedData = data.reduce((acc: any, item: any) => {
-                acc[item.hsCode] = item.sellers.join(',');
-                return acc;
-            }, {});
-            return formattedData
-
-        } catch (error) {
-            logger.error(`There was an issue into data fathimg .: ${error}`);
-            next(error);
-        }
-    }
 
     public similarBuyer = async (
         request: Request,
@@ -522,18 +537,44 @@ class ControllerService implements Controller {
         next: NextFunction
     ) => {
         try {
-            const { companyName } = request.body;
+            const { companyName, hsCode, startDate, endDate } = request.body;
 
+            // Validate required parameter
             if (!companyName) {
-                throw new Error (" company Name is requried ")
+                return "Company name is required"
+            }
+
+            // Initialize the match query object
+            const matchQuery: any = {
+                company: { $ne: companyName } // Exclude records where company is equal to companyName
+            };
+
+            // Conditionally add hsCode filter if provided
+            if (hsCode) {
+                matchQuery.hsCode_1 = hsCode;
+            }
+
+            // Conditionally add date range filter if both startDate and endDate are provided
+            if (startDate && endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+
+
+                if (start > end) {
+                    return "startDate should be less than or equal to endDate."
+
+                }
+
+                matchQuery.date = {
+                    $gte: start,
+                    $lte: end
+                };
             }
 
             // Perform the aggregation query
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
                 {
-                    $match: {
-                        company: { $ne: companyName } // Exclude records where company is equal to companyName
-                    }
+                    $match: matchQuery
                 },
                 {
                     $group: {
@@ -569,10 +610,11 @@ class ControllerService implements Controller {
 
             return formattedData
         } catch (error) {
-            logger.error(`There was an issue into data fathimg .: ${error}`);
+            logger.error(`There was an issue fetching data: ${error}`);
             next(error);
         }
-    }
+    };
+
 
 }
 

@@ -34,14 +34,14 @@ class Fullresponce implements Controller {
     private getFullResponce = async (req: Request, res: Response, next: NextFunction) => {
         try {
 
-            const [aboutUsGraph, companyNexus, getDataByDateRangeAndHsCode, getLast12MonthsReport, getPortAnalysis, mainImportProduct, productNexus, similarBuyer] = await Promise.all([
+            const [aboutUsGraph, companyNexus, getDataByDateRangeAndHsCode, getLast12MonthsReport, getPortAnalysis, mainImportProduct, similarBuyer] = await Promise.all([
                 this.exEmService.aboutUsGraph(req, res, next),
                 this.exEmService.companyNexus(req, res, next),
                 this.exEmService.getDataByDateRangeAndHsCode(req, res, next),
                 this.exEmService.getLast12MonthsReport(req, res, next),
                 this.exEmService.getPortAnalysis(req, res, next),
                 this.exEmService.mainImportProduct(req, res, next),
-                this.exEmService.productNexus(req, res, next),
+               
                 this.exEmService.similarBuyer(req, res, next),
 
             ]);
@@ -50,7 +50,7 @@ class Fullresponce implements Controller {
                 {
                     message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'Dashboard'),
                     data: {
-                        aboutUsGraph, companyNexus, getDataByDateRangeAndHsCode, getLast12MonthsReport, getPortAnalysis, mainImportProduct, productNexus, similarBuyer
+                        aboutUsGraph, companyNexus, getDataByDateRangeAndHsCode, getLast12MonthsReport, getPortAnalysis, mainImportProduct, similarBuyer
                     }
                 },
                 req,

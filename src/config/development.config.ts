@@ -5,6 +5,7 @@ const DEVELOPMENT = (): ConfigEnvironment => {
     PORT,
     MONGO_SRV_EXEM,
     MONGO_DB_EXEM,
+    JWT_SECRET,
     NODE_ENV,
     HTTPS_KEY,
     HTTPS_CERT,
@@ -18,6 +19,8 @@ const DEVELOPMENT = (): ConfigEnvironment => {
     // * DB CONFIG
     MONGO_SRV_EXEM: MONGO_SRV_EXEM ? MONGO_SRV_EXEM : '',
     MONGO_DB_EXEM : MONGO_DB_EXEM ? MONGO_DB_EXEM :'',
+
+    JWT_SECRET: JWT_SECRET ? JWT_SECRET : '',
 
     
     // * SERVER CONFIG

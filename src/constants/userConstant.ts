@@ -1,9 +1,11 @@
 export = Object.freeze({
   ROLES: {
-    admin: 'Admin',
-    user: 'User',
+    admin: 'admin',
+    superAdmin: 'superAdmin'
+   
   },
 
+  AGENT_ROLES_ARRAY: ['admin'],
   USER_GENDER: {
     MALE: 'male',
     FEMALE: 'female',

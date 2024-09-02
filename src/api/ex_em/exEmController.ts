@@ -48,7 +48,7 @@ class exEmController implements Controller {
 
         //9
 
-        this.router.post(`${this.path}/buyerSeller`, this.buyerSeller);    
+        this.router.post(`${this.path}/buyerSeller`, this.buyerSeller);
         this.router.post(`${this.path}/getUniqueBuyers`, this.getUniqueBuyers);
         //this.router.post(`${this.path}/companyData`, this.companyData);
 
@@ -58,6 +58,16 @@ class exEmController implements Controller {
         // this.router.post(`${this.path}/createContactNotes2`, this.createContactNotes2);
         this.router.post(`${this.path}/getContactNotes`, this.getContactNotes);
         this.router.post(`${this.path}/createContactNotes`, this.createContactNotes);
+
+        // Dropdown
+        this.router.get(`${this.path}/hsCode`, this.hsCode);
+        this.router.get(`${this.path}/product`, this.product);
+        this.router.get(`${this.path}/bCountry`, this.bCountry);
+
+        //
+        this.router.post(`${this.path}/productInfo`, this.productInfo);
+        this.router.post(`${this.path}/sellerInfo`, this.sellerInfo);
+        this.router.put(`${this.path}/updateContactInfo`, this.updateContactInfo);
 
 
     }
@@ -133,7 +143,7 @@ class exEmController implements Controller {
             const batchSize = 100; // Adjust as needed
             for (let i = 0; i < documents.length; i += batchSize) {
                 const batch = documents.slice(i, i + batchSize);
-                const result = await MongoService.insertMany(MONGO_DB_EXEM, this.exEm2, { insert: batch });
+                const result = await MongoService.insertMany(MONGO_DB_EXEM, this.exEm, { insert: batch });
                 console.log(`Insert Result (Batch ${i / batchSize + 1}):`, result); // Log the result of the insertion
             }
 
@@ -147,8 +157,6 @@ class exEmController implements Controller {
             next(error);
         }
     }
-    
-
 
 
 
@@ -158,7 +166,7 @@ class exEmController implements Controller {
     ) => {
         try {
             // Extract query parameters from request body
-            const { startDate, endDate, hsCode } = request.body;
+            const { companyName, startDate, endDate, hsCode } = request.body;
             console.log("Received parameters:", { startDate, endDate, hsCode });
 
             // Validate query parameters
@@ -174,6 +182,10 @@ class exEmController implements Controller {
 
             if (startDate && endDate) {
                 query.date = { $gte: startDate, $lte: endDate };
+            }
+
+            if (companyName) {
+                query.date = { buyer: companyName };
             }
 
             console.log("Database query:", query);
@@ -216,35 +228,44 @@ class exEmController implements Controller {
 
             // Validate query parameters
             if (!companyName) {
-                response.status(STATUS_CODE.BAD_REQUEST).send({
+                return response.status(STATUS_CODE.BAD_REQUEST).send({
                     message: 'Please provide companyName.'
                 });
-                return;
             }
 
-            // Convert to Date objects
-            const start = new Date(startDate);
-            const end = new Date(endDate);
+            // Initialize query object
+            const matchQuery: any = {
+                company: companyName
+            };
 
-            // Validate date range
-            if (start > end) {
-                response.status(STATUS_CODE.BAD_REQUEST).send({
-                    message: 'startDate should be less than or equal to endDate.'
-                });
-                return;
+            // Conditionally add date range filter if both startDate and endDate are provided
+            if (startDate && endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+
+                // Validate date objects
+                if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                    return response.status(STATUS_CODE.BAD_REQUEST).send({
+                        message: 'Invalid date format.'
+                    });
+                }
+
+                if (start > end) {
+                    return response.status(STATUS_CODE.BAD_REQUEST).send({
+                        message: 'startDate should be less than or equal to endDate.'
+                    });
+                }
+
+                matchQuery.date = {
+                    $gte: start,
+                    $lte: end
+                };
             }
 
-            // Debugging output and aggrigration 
-
+            // Aggregation
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
                 {
-                    $match: {
-                        company: companyName,
-                        date: {
-                            $gte: start,
-                            $lte: end
-                        }
-                    }
+                    $match: matchQuery
                 },
                 {
                     $group: {
@@ -263,10 +284,9 @@ class exEmController implements Controller {
 
             // Check if data was found
             if (!data || data.length === 0) {
-                response.status(STATUS_CODE.NOT_FOUND).send({
+                return response.status(STATUS_CODE.NOT_FOUND).send({
                     message: 'No data found for the given detail.'
                 });
-                return;
             }
 
             successMiddleware(
@@ -281,9 +301,10 @@ class exEmController implements Controller {
 
         } catch (error) {
             logger.error(`There was an issue fetching data: ${error}`);
-            next(error);
+            return next(error);
         }
     };
+
 
 
     private companyNexus = async (
@@ -362,8 +383,9 @@ class exEmController implements Controller {
         next: NextFunction
     ) => {
         try {
-            const { companyName } = request.body;
+            const { companyName, startDate, endDate } = request.body;
 
+            // Validate required parameter
             if (!companyName) {
                 return response.status(400).json({
                     success: false,
@@ -371,11 +393,41 @@ class exEmController implements Controller {
                 });
             }
 
+            // Initialize the match query object
+            const matchQuery: any = {
+                company: companyName
+            };
+
+            // Conditionally add date range filter if both startDate and endDate are provided
+            if (startDate && endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+
+                // Validate date objects
+                if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                    return response.status(400).json({
+                        success: false,
+                        message: "Invalid date format."
+                    });
+                }
+
+                if (start > end) {
+                    return response.status(400).json({
+                        success: false,
+                        message: "startDate should be less than or equal to endDate."
+                    });
+                }
+
+                matchQuery.date = {
+                    $gte: start,
+                    $lte: end
+                };
+            }
+
+            // Aggregation pipeline
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
                 {
-                    $match: {
-                        company: companyName
-                    }
+                    $match: matchQuery
                 },
                 {
                     $group: {
@@ -436,10 +488,11 @@ class exEmController implements Controller {
             );
 
         } catch (error) {
-            logger.error(`There was an issue into data fathimg .: ${error}`);
+            logger.error(`There was an issue fetching data: ${error}`);
             next(error);
         }
-    }
+    };
+
 
     private getLast12MonthsReport = async (
         request: Request,
@@ -576,8 +629,9 @@ class exEmController implements Controller {
         next: NextFunction
     ) => {
         try {
-            const { companyName } = request.body;
+            const { companyName, startDate, endDate } = request.body;
 
+            // Validate required parameter
             if (!companyName) {
                 return response.status(400).json({
                     success: false,
@@ -597,13 +651,42 @@ class exEmController implements Controller {
 
             const sCountry = companyData.sCountry;
 
+            // Initialize the match query object
+            const matchQuery: any = {
+                company: companyName,
+                sCountry: sCountry
+            };
+
+            // Conditionally add date range filter if both startDate and endDate are provided
+            if (startDate && endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+
+                // Validate date objects
+                if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+                    return response.status(400).json({
+                        success: false,
+                        message: "Invalid date format."
+                    });
+                }
+
+                if (start > end) {
+                    return response.status(400).json({
+                        success: false,
+                        message: "startDate should be less than or equal to endDate."
+                    });
+                }
+
+                matchQuery.date = {
+                    $gte: start,
+                    $lte: end
+                };
+            }
+
             // Aggregate the data
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
                 {
-                    $match: {
-                        company: companyName,
-                        sCountry: sCountry
-                    }
+                    $match: matchQuery
                 },
                 {
                     $group: {
@@ -671,10 +754,11 @@ class exEmController implements Controller {
             );
 
         } catch (error) {
-            logger.error(`There was an issue into data fathimg .: ${error}`);
+            logger.error(`There was an issue fetching data: ${error}`);
             next(error);
         }
     };
+
 
     private productNexus = async (
         request: Request,
@@ -829,77 +913,6 @@ class exEmController implements Controller {
         }
     }
 
-    // private buyerSeller = async (
-    //     request: Request,
-    //     response: Response,
-    //     next: NextFunction
-    // ) => {
-    //     try {
-    //         // Extract query parameters from request body
-    //         const { companyName, endDate, startDate, type } = request.body;
-
-
-
-    //         if (!companyName) {
-    //             response.send("please provide companyName ")
-
-    //         }
-
-    //         if (!type) {
-    //             response.send("please provide type ")
-
-    //         }
-
-    //         const query: any = {};
-
-
-
-
-
-    //         if (startDate && endDate) {
-    //             query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
-    //             logger.info(endDate,startDate)
-    //         }
-
-    //         if (type === "seller") {
-    //             query.seller = companyName;
-    //         } else if (type === "buyer") {
-    //             query.buyer = companyName;
-    //         }
-    //         if (type === "seller") {
-
-    //         const data = await MongoService.find(MONGO_DB_EXEM, this.exEm, { query ,  select: 'seller sCountry  product industry  hsCode_1  unit qty value	pricePerUnit'});
-    //         successMiddleware(
-    //             {
-    //                 message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'buyerSeller'),
-    //                 data: data
-    //             },
-    //             request,
-    //             response,
-    //             next
-    //         );
-    //         }
-    //         if (type === "buyer") {
-    //             logger.info(query)
-    //         const data = await MongoService.find(MONGO_DB_EXEM, this.exEm, {query ,  select: 'buyer bCountry  product industry hsCode_1  unit  qty   value	pricePerUnit'});
-    //         successMiddleware(      
-    //             {
-    //                 message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'buyerSeller'),
-    //                 data: data
-    //             },
-    //             request,
-    //             response,
-    //             next
-    //         );
-    //         }
-
-
-    //     } catch (error) {
-    //         logger.error(`There was an issue fetching data: ${error}`);
-    //         next(error);
-    //     }
-    // };
-
     private buyerSeller = async (
         request: Request,
         response: Response,
@@ -967,49 +980,68 @@ class exEmController implements Controller {
     };
 
 
-    private companyData = async (
+    private productInfo = async (
+        request: Request,
+        response: Response,
+        next: NextFunction  
+    ) => {
+        try {
+            // Extract query parameters from request body
+            const { companyName } = request.body;
+
+
+
+            if (!companyName) {
+                response.send("please provide companyName ")
+
+            }
+
+            const data = await MongoService.find(MONGO_DB_EXEM, this.exEm, {
+                query: { buyer: companyName },
+                select: ' product qty unit pricePerUnit value'
+            });
+            successMiddleware(
+                {
+                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'productInfo'),
+                    data: data
+                },
+                request,
+                response,
+                next
+            );
+        }
+
+
+
+        catch (error) {
+            logger.error(`There was an issue fetching data: ${error}`);
+            next(error);
+        }
+    };
+    
+    private sellerInfo = async (
         request: Request,
         response: Response,
         next: NextFunction
     ) => {
         try {
             // Extract query parameters from request body
-            const { hsCode, country, endDate, startDate } = request.body;
+            const { companyName } = request.body;
 
 
 
-            if (!hsCode) {
-                response.send("please provide hsCode ")
-
-            }
-
-            if (!country) {
-                response.send("please provide coountry ")
+            if (!companyName) {
+                response.send("please provide companyName ")
 
             }
-
-            const query: any = {};
-
-
-
-            if (country && hsCode) {
-                query.bCountry = country;
-                query.hsCode_1 = hsCode;
-
-            }
-
-            if (startDate && endDate) {
-                query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
-            }
-
 
             const data = await MongoService.find(MONGO_DB_EXEM, this.exEm, {
-                query,
-                select: 'buyer product qty pricePerUnit notes contactInfo'
+                query: { buyer: companyName },
+                select: 'seller product qty unit pricePerUnit value dPort sPort'
             });
             successMiddleware(
                 {
-                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'buyerSeller'),
+                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'productInfo'),
                     data: data
                 },
                 request,
@@ -1034,10 +1066,10 @@ class exEmController implements Controller {
         try {
             // Extract query parameters from request body
             //const { id } = request.params;
-            const { companyName, notes, conatctInfo } = request.body;  // Destructure notes and contactInfo from request body
+            const { companyName, notes, conatctInfo, link } = request.body;  // Destructure notes and contactInfo from request body
 
 
-          //if record found so delete it another move one 
+            //if record found so delete it another move one 
             const destroyer = await MongoService.deleteOne(
                 MONGO_DB_EXEM,
                 this.noteContaceInfo,
@@ -1053,7 +1085,8 @@ class exEmController implements Controller {
                     insert: {
                         companyName: companyName,
                         notes: notes,
-                        conatctInfo: conatctInfo
+                        conatctInfo: conatctInfo,
+                        link: link
 
                     }
 
@@ -1065,8 +1098,15 @@ class exEmController implements Controller {
                 return response.status(404).send({ message: "Order not found." });
             }
 
-            // Send the updated order in the response
-            response.send(updatedOrder);
+            successMiddleware(
+                {
+                    message: SUCCESS_MESSAGES.COMMON.CREATE_SUCCESS.replace(':attribute', 'company Info'),
+                    data: updatedOrder
+                },
+                request,
+                response,
+                next
+            );
 
         } catch (error) {
             // Pass the error to the next middleware (for error handling)
@@ -1080,117 +1120,185 @@ class exEmController implements Controller {
         next: NextFunction
     ) => {
         try {
-            const { hsCode, startDate, endDate, country } = request.body;
-    
-            // Validate required parameters
-            if (!hsCode || !startDate || !endDate || !country) {
-                return response.status(400).send("Please provide hsCode, startDate, endDate, and country");
-            }
-    
+            const { hsCode, startDate, endDate, country, product, } = request.body;
+            const page = parseInt(request.query.page as string) || 1;
+            const pageSize = parseInt(request.query.pageSize as string) || 10;
+
             // Build the query object
-            const query = {
-                date: { $gte: new Date(startDate), $lte: new Date(endDate) },
-                hsCode_1: hsCode,
-                bCountry: country
-            };
-    
-            // Perform the aggregation to get unique buyers with product details
-            const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
-                { $match: query },
-                {
-                    $group: {
-                        _id: {
-                            buyer: "$buyer",
-                            product: "$product",
-                            pricePerUnit: "$pricePerUnit"
-                        },
-                        totalQty: { $sum: "$qty" }
-                        
-                    }
-                },
-                {
-                    $group: {
-                        _id: "$_id.buyer",
-                        products: {
-                            $push: {
-                                product: "$_id.product",
-                                qty: "$totalQty",
-                                pricePerUnit: "$_id.pricePerUnit",
-                               
+            const query: any = {};
+            if (country) {
+                query.bCountry = country;
+            }
+            if (hsCode) {
+                query.hsCode_1 = hsCode;
+            }
+            if (startDate && endDate) {
+                query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+            }
+            if (product) {
+                query.product = product;
+            }
+
+            if (Object.keys(query).length === 0) {
+                return response.status(400).json({
+                    success: false,
+                    message: 'At least one filter field is required (country, hsCode, startDate, endDate, product).'
+                });
+            }
+
+
+            // Define pagination parameters
+            const paginate = {
+                query: [
+                    { $match: query },
+                    {
+                        $group: {
+                            _id: {
+                                bCountry: "$bCountry",
+                                hsCode_1: "$hsCode_1",
+                                product: "$product",
+                                date: "$date",
+                                industry: "$industry",
+                                buyer: "$buyer"
                             }
                         }
+                    },
+                    {
+                        $project: {
+                            _id: 0,
+                            bCountry: "$_id.bCountry",
+                            hsCode_1: "$_id.hsCode_1",
+                            product: "$_id.product",
+                            date: "$_id.date",
+                            industry: "$_id.industry",
+                            buyer: "$_id.buyer"
+                        }
                     }
-                },
-                {
-                    $project: {
-                        _id: 0,
-                        buyer: "$_id",
-                        details: "$products"
-                    }
-                }
-            ]);
-    
-            // Respond with the unique buyers and their details
+                ],
+                offset: page,
+                limit: pageSize
+            };
+
+            // Paginate results
+            const result = await MongoService.aggregatePaginate(MONGO_DB_EXEM, this.exEm, paginate);
+
+            // Send response
             successMiddleware(
                 {
                     message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'unique buyers with product details'),
-                    data: data // The projection is applied directly in the aggregation pipeline
+                    data: {
+                        data: result.docs,
+                        currentPage: result.page,
+                        pageSize: result.limit,
+                        totalCount: result.totalDocs, // Total documents
+                        totalPages: result.totalPages // Total pages
+                    }
                 },
                 request,
                 response,
                 next
             );
-    
+
         } catch (error) {
             logger.error(`There was an issue fetching unique buyers: ${error}`);
             next(error);
         }
     };
-    
-    
-    
 
-    // private createContactNotes2 = async (
+
+
+    // private getUniqueBuyers = async (
     //     request: Request,
     //     response: Response,
     //     next: NextFunction
     // ) => {
     //     try {
-    //         // Extract query parameters from request body
-
-    //         const { companyName, notes, conatctInfo } = request.body;  // Destructure notes and contactInfo from request body
+    //         const { hsCode, startDate, endDate, country, product } = request.body;
 
 
 
+    //         const query: any = {};
 
-    //         // Update the document with the provided fields
-    //         const updatedOrder = await MongoService.create(
-    //             MONGO_DB_EXEM,
-    //             this.noteContaceInfo,
-    //             {
-    //                 insert: {
-    //                     companyName: companyName,
-    //                     notes: notes,
-    //                     conatctInfo: conatctInfo
 
-    //                 }
 
-    //             }
-    //         );
-
-    //         // Check if the document was found and updated
-    //         if (!updatedOrder) {
-    //             return response.status(404).send({ message: "Order not found." });
+    //         if (country) {
+    //             query.bCountry = country;
     //         }
 
-    //         // Send the updated order in the response
-    //         response.send(updatedOrder);
+    //         if (hsCode) {
+    //             query.hsCode_1 = hsCode;
+    //         }
+
+    //         if (startDate && endDate) {
+    //             query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+    //         }
+
+
+    //         if (product) {
+    //             query.product = product
+    //         }
+
+    //         console.log(query);
+
+
+    //         const data = await MongoService.find(MONGO_DB_EXEM, this.exEm, {
+    //             query,
+    //             select: 'date bCountry hsCode_1 industry buyer'
+    //         });
+    //         // Perform the aggregation to get unique buyers with product details
+    //         // const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
+    //         //     { $match: query },
+    //         //     {
+    //         //         $group: {
+    //         //             _id: {
+    //         //                 buyer: "$buyer",
+    //         //                 product: "$product",
+    //         //                 pricePerUnit: "$pricePerUnit"
+    //         //             },
+    //         //             totalQty: { $sum: "$qty" }
+
+    //         //         }
+    //         //     },
+    //         //     {
+    //         //         $group: {
+    //         //             _id: "$_id.buyer",
+    //         //             products: {
+    //         //                 $push: {
+    //         //                     product: "$_id.product",
+    //         //                     qty: "$totalQty",
+    //         //                     pricePerUnit: "$_id.pricePerUnit",
+
+    //         //                 }
+    //         //             }
+    //         //         }
+    //         //     },
+    //         //     {
+    //         //         $project: {
+    //         //             _id: 0,
+    //         //             buyer: "$_id",
+    //         //             details: "$products"
+    //         //         }
+    //         //     }
+    //         // ]);
+
+    //         // Respond with the unique buyers and their details
+    //         successMiddleware(
+    //             {
+    //                 message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'unique buyers with product details'),
+    //                 data: data // The projection is applied directly in the aggregation pipeline
+    //             },
+    //             request,
+    //             response,
+    //             next
+    //         );
 
     //     } catch (error) {
-    //         // Pass the error to the next middleware (for error handling)
+    //         logger.error(`There was an issue fetching unique buyers: ${error}`);
     //         next(error);
     //     }
-    // }
+    // };
+
+
 
     private getContactNotes = async (
         request: Request,
@@ -1203,7 +1311,8 @@ class exEmController implements Controller {
             const { companyName } = request.body;  // Destructure notes and contactInfo from request body
 
 
-
+            const companyData = await MongoService.findOne(MONGO_DB_EXEM,                      // connectionName
+                this.exEm, { query: { buyer: companyName }, select: 'buyer bCountry industry' })
 
             // Update the document with the provided fields
             const result = await MongoService.findOne(
@@ -1219,13 +1328,200 @@ class exEmController implements Controller {
 
 
             // Send the updated order in the response
-            response.send(result);
+            successMiddleware(
+                {
+                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'hscode'),
+                    data: {companyData:companyData,result:result} // The projection is applied directly in the aggregation pipeline
+                },
+                request,
+                response,
+                next
+            );
 
         } catch (error) {
-            // Pass the error to the next middleware (for error handling)
+            logger.error(`There was an issue fetching hscode: ${error}`);
             next(error);
         }
-    }
+    };
+
+
+    private hsCode = async (
+        request: Request,
+        response: Response,
+        next: NextFunction
+    ) => {
+        try {
+            // Perform aggregation to get unique hsCode_1 values and format the result
+            const result = await MongoService.aggregate(
+                MONGO_DB_EXEM, // Ensure this is defined and correct
+                this.exEm,     // Ensure this is defined and correct
+                [
+                    {
+                        $group: {
+                            _id: "$hsCode_1" // Group by hsCode_1
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 0,            // Exclude the _id field
+                            hscode: "$_id"     // Rename _id to hscode
+                        }
+                    }
+                ]
+            );
+
+            successMiddleware(
+                {
+                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'hscode'),
+                    data: result // The projection is applied directly in the aggregation pipeline
+                },
+                request,
+                response,
+                next
+            );
+
+        } catch (error) {
+            logger.error(`There was an issue fetching hscode: ${error}`);
+            next(error);
+        }
+    };
+
+
+    private product = async (
+        request: Request,
+        response: Response,
+        next: NextFunction
+    ) => {
+        try {
+            // Perform aggregation to get unique product values
+            const result = await MongoService.aggregate(
+                MONGO_DB_EXEM,
+                this.exEm,
+                [
+                    {
+                        $group: {
+                            _id: "$product" // Group by product
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 0,
+                            product: "$_id"     // Rename _id to product
+                        }
+                    }
+                ]
+            );
+
+            successMiddleware(
+                {
+                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'product'),
+                    data: result
+                },
+                request,
+                response,
+                next
+            );
+
+        } catch (error) {
+            logger.error(`There was an issue fetching product: ${error}`);
+            next(error);
+        }
+    };
+
+
+    private bCountry = async (
+        request: Request,
+        response: Response,
+        next: NextFunction
+    ) => {
+        try {
+            // Perform aggregation to get unique product values
+            const result = await MongoService.aggregate(
+                MONGO_DB_EXEM,
+                this.exEm,
+                [
+                    {
+                        $group: {
+                            _id: "$bCountry" // Group by product
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 0,            // Exclude the _id field
+                            country: "$_id"     // Rename _id to Country
+                        }
+                    }
+
+                ]
+            );
+
+            successMiddleware(
+                {
+                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'Country'),
+                    data: result // The projection is applied directly in the aggregation pipeline
+                },
+                request,
+                response,
+                next
+            );
+
+        } catch (error) {
+            logger.error(`There was an issue fetching Country: ${error}`);
+            next(error);
+        }
+    };
+
+    private updateContactInfo = async (
+        request: Request,
+        response: Response,
+        next: NextFunction
+    ) => {
+        try {
+            const { companyName, newContactInfo } = request.body;
+
+            // Validate the required fields
+            if (!companyName || !Array.isArray(newContactInfo)) {
+                return response.status(400).json({ message: 'companyName and newContactInfo are required and newContactInfo must be an array' });
+            }
+
+
+
+            // Perform the update operation
+            const result = await MongoService.updateMany(
+                MONGO_DB_EXEM,                      // connectionName
+                this.noteContaceInfo,               // collections
+                {
+                    query: { companyName: companyName },  // query within options
+                    updateData: { $set: { conatctInfo: newContactInfo } }, // updateData within options
+                    updateOptions: { new: true }          // optional updateOptions
+                }
+            );
+
+
+
+
+            // Check if the operation was successful
+            if (result.matchedCount === 0) {
+                return response.status(404).send({ message: 'Document not found.' });
+            }
+
+            // Send success response
+            successMiddleware(
+                {
+                    message: SUCCESS_MESSAGES.COMMON.UPDATE_SUCCESS.replace(':attribute', 'contact info'),
+                    data: result
+                },
+                request,
+                response,
+                next
+            );
+
+        } catch (error) {
+            // Log error and pass it to the next middleware
+            logger.error(`Error in updateContactInfo: ${error}`);
+            next(error);
+        }
+    };
 
 }
 

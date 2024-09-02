@@ -61,9 +61,7 @@ const find = async (connectionName: string, collections: any, options?: Options)
     .select(options?.select)
     .populate(options?.populate)
     .sort(options?.sort)
-    .skip(options?.offset || 0)
-    .limit(options?.limit || 10)
-    .lean(options?.lean || true);
+    
 }
 
 const findById = async (connectionName: string, collections: any, options?: Options) => {
@@ -115,7 +113,7 @@ const deleteOne = async (connectionName: string, collections: any, options: Opti
   return model.deleteOne(options.query || {}).exec();
 }
 
-const findOneAndUpdate = async (connectionName: string, collections: any, options: Options) => {
+const findOneAndUpdate = async (connectionName: string, collections: any,  options: Options) => {
   const model = getModel(connectionName, collections.modelName, collections.modelSchema);
   return model.findOneAndUpdate(
     options.query || {},

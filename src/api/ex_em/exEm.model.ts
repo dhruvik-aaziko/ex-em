@@ -2,6 +2,7 @@
 import { timeStamp } from 'console';
 import { exEm } from './exEm.interface';
 import mongoosePaginate from 'mongoose-paginate-v2';
+import aggregatePaginate from 'mongoose-aggregate-paginate-v2';
 import mongoose, { Schema, Document } from 'mongoose';
 
 
@@ -37,7 +38,9 @@ const exEmSchema: Schema = new mongoose.Schema({
             getters: true
         }
     })
+    exEmSchema.plugin(aggregatePaginate);
     exEmSchema.plugin(mongoosePaginate);
+
 const exEmModel = mongoose.model<exEm & mongoose.Document>('exEm', exEmSchema)
 export default { model: exEmModel, modelSchema: exEmSchema, modelName: 'exEm' };
 
