@@ -15,11 +15,11 @@ import linkModel from './links.model'
 const { MONGO_DB_EXEM } = getconfig();
 
 class linkController implements Controller {
-    public path = `/${ROUTES.CONTACT_INFO}`;
+    public path = `/${ROUTES.LINK}`;
     public router = Router();
-   
+
     public link = linkModel
-   
+
 
 
     constructor() {
@@ -36,11 +36,11 @@ class linkController implements Controller {
             this.uploadExcelData
         );
 
-        this.router.post('/createlink', this.createlink);
-        this.router.post('/getlink', this.getlink);
-        this.router.put('/updatelink/:id', this.updatelink);
-        this.router.delete('/deletelink/:id', this.deletelink);
-      }
+        this.router.post(`${this.path}/createlink`, this.createlink);
+        this.router.post(`${this.path}/getlink`, this.getlink);
+        this.router.put(`${this.path}/updatelink/:id`, this.updatelink);
+        this.router.delete(`${this.path}/deletelink/:id`, this.deletelink);
+    }
     private uploadExcelData = async (
         request: Request,
         response: Response,
@@ -84,14 +84,14 @@ class linkController implements Controller {
             const documents = sheetData.map((row: any) => ({
                 companyName: row['companyName'] || null,
                 personName: row['personName'] || null,
-                Phone: row['Phone'] 
-                    ? parseInt(String(row['Phone']).replace(/[^0-9]/g, ''), 10) 
+                Phone: row['Phone']
+                    ? parseInt(String(row['Phone']).replace(/[^0-9]/g, ''), 10)
                     : null,
                 Email: row['Email'] || null,
                 Position: row['Position'] || null
             }));
-            
-            
+
+
 
             console.log('Mapped Documents:', documents); // Log the data to be inserted
 
@@ -120,7 +120,7 @@ class linkController implements Controller {
         next: NextFunction
     ) => {
         try {
-            const linkData= request.body;
+            const linkData = request.body;
             // const { companyName, personName ,Phone ,Email ,Position} = request.body;
 
             // Insert new contact info into the database
@@ -132,7 +132,7 @@ class linkController implements Controller {
                 //     Email:Email,
                 //     Position:Position,
                 // }
-                insert:linkData
+                insert: linkData
 
             });
 
@@ -229,7 +229,7 @@ class linkController implements Controller {
         try {
             const { id } = request.params;
 
-            const result = await MongoService.deleteOne(MONGO_DB_EXEM, this.link, {query: { _id: id }});
+            const result = await MongoService.deleteOne(MONGO_DB_EXEM, this.link, { query: { _id: id } });
 
             if (!result.deletedCount) {
                 return response.status(404).json({ message: 'Contact info not found' });

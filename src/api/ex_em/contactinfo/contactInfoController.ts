@@ -10,6 +10,8 @@ import { successMiddleware } from '../../../middleware/response.middleware';
 import logger from '../../../logger';
 import { MongoService } from '../../../utils/mongoService';
 import contaceInfoModel from './contactInfo.model'
+import { ObjectId } from 'mongodb';
+import mongoose from 'mongoose';
 
 
 const { MONGO_DB_EXEM } = getconfig();
@@ -17,9 +19,9 @@ const { MONGO_DB_EXEM } = getconfig();
 class ContaceInfoController implements Controller {
     public path = `/${ROUTES.CONTACT_INFO}`;
     public router = Router();
-   
+
     public ContaceInfo = contaceInfoModel
-   
+
 
 
     constructor() {
@@ -36,11 +38,16 @@ class ContaceInfoController implements Controller {
             this.uploadExcelData
         );
 
-        this.router.post('/createContactInfo', this.createContactInfo);
-        this.router.post('/getContactInfo', this.getContactInfo);
-        this.router.put('/updateContactInfo/:id', this.updateContactInfo);
-        this.router.delete('/deleteContactInfo/:id', this.deleteContactInfo);
-      }
+        this.router.post(`${this.path}/createContactInfo`, this.createContactInfo);
+        this.router.post(`${this.path}/getContactInfo`, this.getContactInfo);
+        this.router.put(`${this.path}/updateContactInfo/:id`, this.updateContactInfo);
+        this.router.delete(`${this.path}/deleteContactInfo/:id`, this.deleteContactInfo);
+
+        // Routes for notes within tasks
+        this.router.put(`${this.path}/addnote/:id`, this.addNote); // Add a new note
+        this.router.put(`${this.path}/updatenote`, this.updateNote); // Update a note
+        this.router.delete(`${this.path}/deletenote`, this.deleteNote); // Delete a note
+    }
     private uploadExcelData = async (
         request: Request,
         response: Response,
@@ -84,14 +91,14 @@ class ContaceInfoController implements Controller {
             const documents = sheetData.map((row: any) => ({
                 companyName: row['companyName'] || null,
                 personName: row['personName'] || null,
-                Phone: row['Phone'] 
-                    ? parseInt(String(row['Phone']).replace(/[^0-9]/g, ''), 10) 
+                Phone: row['Phone']
+                    ? parseInt(String(row['Phone']).replace(/[^0-9]/g, ''), 10)
                     : null,
                 Email: row['Email'] || null,
                 Position: row['Position'] || null
             }));
-            
-            
+
+
 
             console.log('Mapped Documents:', documents); // Log the data to be inserted
 
@@ -120,7 +127,7 @@ class ContaceInfoController implements Controller {
         next: NextFunction
     ) => {
         try {
-            const contactData= request.body;
+            const contactData = request.body;
             // const { companyName, personName ,Phone ,Email ,Position} = request.body;
 
             // Insert new contact info into the database
@@ -132,7 +139,7 @@ class ContaceInfoController implements Controller {
                 //     Email:Email,
                 //     Position:Position,
                 // }
-                insert:contactData
+                insert: contactData
 
             });
 
@@ -229,7 +236,7 @@ class ContaceInfoController implements Controller {
         try {
             const { id } = request.params;
 
-            const result = await MongoService.deleteOne(MONGO_DB_EXEM, this.ContaceInfo, {query: { _id: id }});
+            const result = await MongoService.deleteOne(MONGO_DB_EXEM, this.ContaceInfo, { query: { _id: id } });
 
             if (!result.deletedCount) {
                 return response.status(404).json({ message: 'Contact info not found' });
@@ -249,6 +256,159 @@ class ContaceInfoController implements Controller {
             next(error);
         }
     };
+
+    public addNote = async (
+        request: Request,
+        response: Response,
+        next: NextFunction
+    ) => {
+        try {
+            const { id } = request.params;
+            const { text } = request.body;
+
+            if (!text ) {
+                return response
+                    .status(400)
+                    .json({ message: 'Text and timestamp are required' });
+            }
+
+            const result = await MongoService.findOneAndUpdate(
+                MONGO_DB_EXEM,
+                this.ContaceInfo,
+                {
+                    query: { _id: id },
+                    updateData: {
+                        $push: { notes: { text } }
+                    },
+                    updateOptions: { new: true }
+                }
+            );
+
+            if (!result) {
+                return response.status(404).json({ message: 'Task not found' });
+            }
+
+            successMiddleware(
+                {
+                    message: 'Note added successfully',
+                    data: result
+                },
+                request,
+                response,
+                next
+            );
+        } catch (error) {
+            logger.error(`Error adding note: ${error}`);
+            next(error);
+        }
+    };
+
+    public updateNote = async (
+        request: Request,
+        response: Response,
+        next: NextFunction
+      ) => {
+        try {
+          // Extract the data from the request body
+          const { newText, conatctInfoId, noteId } = request.body;
+    
+          // Check if all required fields are present
+          if (!newText || !conatctInfoId || !noteId) {
+            return response
+              .status(400)
+              .json({ message: 'New text, call ID, and note ID are required' });
+          }
+    
+          // Convert callId and noteId to ObjectId
+          const callObjectId = new mongoose.Types.ObjectId(conatctInfoId);
+          const noteObjectId = new mongoose.Types.ObjectId(noteId);
+    
+          console.log(callObjectId, noteObjectId)
+          // Perform the update operation
+          const result = await MongoService.findOneAndUpdate(
+            MONGO_DB_EXEM,
+            this.ContaceInfo,
+            {
+              query: { _id: callObjectId, 'notes._id': noteObjectId },
+              updateData: { $set: { 'notes.$.text': newText } },
+              updateOptions: { new: true }
+            }
+          );
+    
+          // Check if the result is valid
+          if (!result) {
+            return response.status(404).json({ message: 'Contact info or note not found' });
+          }
+    
+          // Send success response
+          successMiddleware(
+            {
+              message: 'Note updated successfully',
+              data: result
+            },
+            request,
+            response,
+            next
+          );
+        } catch (error) {
+          // Log error and pass to the error handler middleware
+          logger.error(`Error updating note: ${error}`);
+          next(error);
+        }
+      };
+    
+    
+      public deleteNote = async (
+      request: Request,
+      response: Response,
+      next: NextFunction
+    ) => {
+      try {
+        // Extract callId and noteId from request
+        const { conatctInfoId, noteId } = request.body;
+    
+        // Validate `callId` and `noteId`
+        if (!conatctInfoId || !noteId) {
+          return response.status(400).json({ message: 'Call ID and note ID are required' });
+        }
+    
+        // Convert `callId` and `noteId` to ObjectId
+        const callObjectId = new mongoose.Types.ObjectId(conatctInfoId);
+        const noteObjectId = new mongoose.Types.ObjectId(noteId);
+    
+        // Perform the update operation
+        const result = await MongoService.findOneAndUpdate(
+          MONGO_DB_EXEM,
+          this.ContaceInfo,
+          {
+            query: { _id: callObjectId, 'notes._id': noteObjectId },
+            updateData: { $pull: { notes: { _id: noteObjectId } } },
+            updateOptions: { new: true }
+          }
+        );
+    
+        // Handle case where no document was found
+        if (!result || result.matchedCount === 0) {
+          return response.status(404).json({ message: 'Contact info not found or note not found' });
+        }
+    
+        // Successful response
+        successMiddleware(
+          {
+            message: 'Note deleted successfully',
+            data: result
+          },
+          request,
+          response,
+          next
+        );
+      } catch (error) {
+        // Log error and pass to the error handler middleware
+        logger.error(`Error deleting note: ${error}`);
+        next(error);
+      }
+    
+    }
 }
 
 export default ContaceInfoController;

@@ -60,9 +60,9 @@ class exEmController implements Controller {
         this.router.post(`${this.path}/createContactNotes`, this.createContactNotes);
 
         // Dropdown
-        this.router.get(`${this.path}/hsCode`, this.hsCode);
-        this.router.get(`${this.path}/product`, this.product);
-        this.router.get(`${this.path}/bCountry`, this.bCountry);
+        this.router.post(`${this.path}/hsCode`, this.hsCode);
+        this.router.post(`${this.path}/product`, this.product);
+        this.router.post(`${this.path}/bCountry`, this.bCountry);
 
         //
         this.router.post(`${this.path}/productInfo`, this.productInfo);
@@ -1411,6 +1411,8 @@ class exEmController implements Controller {
                     }
                 ]
             );
+
+            
 
             successMiddleware(
                 {

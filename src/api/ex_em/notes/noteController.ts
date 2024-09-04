@@ -15,7 +15,7 @@ import NoteModel from './note.model'
 const { MONGO_DB_EXEM } = getconfig();
 
 class NoteController implements Controller {
-    public path = `/${ROUTES.CONTACT_INFO}`;
+    public path = `/${ROUTES.NOTES}`;
     public router = Router();
    
     public Note = NoteModel
@@ -36,10 +36,10 @@ class NoteController implements Controller {
             this.uploadExcelData
         );
 
-        this.router.post('/createNote', this.createNote);
-        this.router.post('/getNote', this.getNote);
-        this.router.put('/updateNote/:id', this.updateNote);
-        this.router.delete('/deleteNote/:id', this.deleteNote);
+        this.router.post(`${this.path}/createNote`, this.createNote);
+        this.router.post(`${this.path}/getNote`, this.getNote);
+        this.router.put(`${this.path}/updateNote/:id`, this.updateNote);
+        this.router.delete(`${this.path}/deleteNote/:id`, this.deleteNote);
       }
     private uploadExcelData = async (
         request: Request,

@@ -18,6 +18,11 @@ export = Object.freeze({
   EX_EM:'exem',
   EX_EM_FULLRESPONCE:'fullResponce',
   CONTACT_INFO:'contactInfo',
+  NOTES:'notes',
+  TASK:'task',
+  LINK:'link',
+  MEETING:'meeting',
+  CALL:'call',
 
   DASHBOARD :'dashboard',
   COMPANY:'company',

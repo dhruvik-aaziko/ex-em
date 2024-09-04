@@ -6,6 +6,9 @@ import adminController from './admin/admin.controller';
 import ContaceInfoController from './ex_em/contactinfo/contactInfoController';
 import linkController from './ex_em/links/linksController';
 import NoteController from './ex_em/notes/noteController';
+import taskController from './ex_em/task/taskController';
+import MeetingController from './ex_em/meeting/meetingController';
+import CallController from './ex_em/call/callController';
 
 /**
  * Array of controller instances for the application.
@@ -23,6 +26,9 @@ export const initializesAllControllers = [
    new adminController(),
    new linkController(),
    new ContaceInfoController(),
-   new NoteController()
+   new NoteController(),
+   new taskController(),
+   new MeetingController(),
+   new CallController()
     
 ]

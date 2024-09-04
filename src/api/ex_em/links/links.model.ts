@@ -4,6 +4,7 @@ import { links } from './links.interface'
 import mongoose, { Schema, Document } from 'mongoose';
 
 
+
 const linkSchema: Schema = new mongoose.Schema({
     companyName: { type: String ,require:true },
     companyLink: { type: String }, // Assuming this is the primary link
