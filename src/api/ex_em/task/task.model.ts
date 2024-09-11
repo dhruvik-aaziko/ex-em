@@ -1,4 +1,15 @@
 
+
+
+
+
+
+
+
+
+
+
+
 import { EMPTY } from '../../../constants';
 import { tasks } from './task.interface'
 
@@ -6,6 +17,9 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 
 const taskSchema: Schema = new mongoose.Schema({
+    
+    userAdminId: { type: mongoose.Schema.Types.ObjectId, ref: 'admin' },
+
     taskOwner: { type: String, require: true },
     companyName: { type: String, require: true }, // Assuming this is the primary task
     subject: { type: String, require: true },

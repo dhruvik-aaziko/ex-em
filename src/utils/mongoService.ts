@@ -196,6 +196,16 @@ const aggregatePaginate = async (connectionName: string, collections: any, pagin
   return model.aggregatePaginate(aggregate, options);
 };
 
+const bulkWrite = async (connectionName: string, collections: any, operations: any[], options: any = {}) => {
+  // Retrieve the model based on the connection name and collections schema
+  const model = getModel(connectionName, collections.modelName, collections.modelSchema);
+  
+  // Execute the bulkWrite operation on the model
+  return model.bulkWrite(operations, options);
+};
+
+
+
 
 const exportObject = {
   ObjectId,
@@ -214,7 +224,8 @@ const exportObject = {
   getModel,
   pagination,
   aggregatePaginate,
-  insertMany
+  insertMany,
+  bulkWrite
 };
 
 export const MongoService = exportObject;

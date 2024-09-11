@@ -1,4 +1,5 @@
 export interface tasks {
+    userAdminId: String;
     taskOwner: String;
     companyName: String;
     subject: String;

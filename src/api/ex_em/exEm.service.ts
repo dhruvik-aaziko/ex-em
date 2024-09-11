@@ -9,6 +9,8 @@ import getconfig from '../../config';
 import logger from '../../logger';
 import { MongoService } from '../../utils/mongoService';
 import exEmModel from './exEm.model';
+import { orderBy } from 'lodash';
+import { TopologyType } from 'mongodb';
 const { MONGO_DB_EXEM } = getconfig();
 
 class ControllerService implements Controller {
@@ -177,6 +179,7 @@ class ControllerService implements Controller {
 
             if (productName) {
                 matchConditions.product = productName;
+                
             }
 
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
@@ -186,7 +189,8 @@ class ControllerService implements Controller {
                 {
                     $group: {
                         _id: "$seller",
-                        totalValue: { $sum: "$value" }
+                        totalValue: { $sum: "$value" },
+                        TopologyType:{$:""}
                     }
                 },
                 {

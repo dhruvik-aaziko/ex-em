@@ -24,8 +24,7 @@ const exEm2Schema: Schema = new mongoose.Schema({
     qty: { type:Schema.Types.Mixed, },
     value: { type:Schema.Types.Mixed, },
     pricePerUnit: { type:Schema.Types.Mixed, },
-    notes: { type:Schema.Types.Mixed,default:" " },
-    contactInfo: { type:Schema.Types.Mixed,default:" " },
+    sheetName: { type:Schema.Types.Mixed,default:" " },
 
    // emptyField: {type:Schema.Types.Mixed, default: '-' } // Handling "__EMPTY" field
 },

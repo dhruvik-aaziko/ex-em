@@ -6,12 +6,15 @@ import logger from '../../../logger';
 import { MongoService } from '../../../utils/mongoService';
 import taskModel from './task.model';
 import taskValidation from './task.validation';
-
-import mongoose from 'mongoose';
+import authMiddleware from '../../../middleware/auth.middleware';
+import { RequestWithAdmin } from '../../../interfaces/requestWithAdmin.interface';
+import mongoose, { Query } from 'mongoose';
 import uploadHandler from '../../../utils/multer';
 import { validateFile } from '../../../utils/validationFunctions';
 import { audioFileUploadHandle, fileUploadHandle, pdfFileUploadHandle, videoFileUploadHandle } from '../../../utils/fileUploadHandle';
 import { Kafka } from 'aws-sdk';
+import { log } from 'console';
+import adminModel from '../../admin/admin.model';
 
 const { MONGO_DB_EXEM } = getconfig();
 
@@ -20,6 +23,7 @@ class taskController {
   private validation = new taskValidation();
   public router = Router();
   public task = taskModel;
+  public Admin = adminModel
 
   constructor() {
     this.initializeRoutes();
@@ -28,26 +32,31 @@ class taskController {
   private initializeRoutes() {
     this.router.post(
       `${this.path}/createTask`,
+      authMiddleware,
       this.validation.createTaskValidation(),
       this.createTask);
 
     this.router.post(
-      `${this.path}/getAllTasks`,
-      this.validation.getTaskValidation(),
-      this.getAllTasks);
+      `${this.path}/getTasks/:id`,
+      authMiddleware,
+      this.getTasks);
 
-    this.router.put(`
-      ${this.path}/updateTask/:id`,
-      this.validation.updateTaskValidation(),
+    this.router.put(
+      `${this.path}/updateTask/:id`,
+      authMiddleware,
+      // this.validation.updateTaskValidation(),
       this.updateTask);
 
     this.router.delete(
       `${this.path}/deleteTask/:id`,
+
+      authMiddleware,
       this.deleteTask);
 
-    // Routes for notes within tasks
+    //====Routes for notes within tasks=====================================================================================
     this.router.post(
       `${this.path}/addnote/:id`,
+      authMiddleware,
       uploadHandler.fields([
 
         { name: "image", maxCount: 1 },
@@ -60,6 +69,7 @@ class taskController {
 
     this.router.post(
       `${this.path}/updatenote`,
+      this.validation.updateNoteValidation,
       uploadHandler.fields([
         { name: "image", maxCount: 1 },
         { name: "video", maxCount: 1 },
@@ -72,8 +82,34 @@ class taskController {
 
     this.router.delete(
       `${this.path}/deletenote`,
+      this.validation.deleteNoteValidation(),
       this.deleteNote); // Delete a note
+
+
+
+    this.router.post(
+      `${this.path}/allUserDropdown`,
+
+      this.allUserDropdown);
+
+
+
+    //==== OPEN ACTIVITY =====================================================================
+
+    this.router.post(
+      `${this.path}/taskOpenActivity`,
+      authMiddleware,
+
+      this.taskOpenActivity);
+
+    this.router.post(
+      `${this.path}/taskCompleteActivity`,
+      authMiddleware,
+
+      this.taskCompleteActivity);
+
   }
+
 
   public createTask = async (
     request: Request,
@@ -81,6 +117,7 @@ class taskController {
     next: NextFunction
   ) => {
     try {
+
       const {
         taskOwner,
         companyName,
@@ -114,8 +151,12 @@ class taskController {
         throw new Error(ERROR_MESSAGES.COMMON.ALREADY_EXISTS.replace(':attribute', 'task'));
       }
 
+      const req = request as RequestWithAdmin;
+      const currentUserId = req.user._id;
+
       const addTask = await MongoService.create(MONGO_DB_EXEM, this.task, {
         insert: {
+          userAdminId: currentUserId,
           taskOwner: taskOwner,
           companyName: companyName,
           subject: subject,
@@ -144,16 +185,20 @@ class taskController {
     }
   };
 
-  public getAllTasks = async (
+  public getTasks = async (
     request: Request,
     response: Response,
     next: NextFunction
   ) => {
     try {
-      const { companyName } = request.body
+      
+      const { id } = request.params;
+
+      const req = request as RequestWithAdmin;
+      const currentUserId = req.user._id;
 
       const result = await MongoService.find(MONGO_DB_EXEM, this.task, {
-        query: { companyName: companyName }
+        query: {  _id:id}
       });
 
       successMiddleware(
@@ -180,7 +225,10 @@ class taskController {
       const { id } = request.params;
       const updateData = request.body;
 
-      if (updateData) {
+      console.log(updateData);
+      
+
+      if (!updateData) {
 
         throw new Error(ERROR_MESSAGES.COMMON.REQUIRED.replace(':attribute', `updateData`));
 
@@ -245,7 +293,7 @@ class taskController {
     }
   };
 
-  //       ====================================================================================================================
+  //====================================================================================================================
 
 
   public addNoteToTask = async (
@@ -257,10 +305,13 @@ class taskController {
       const { text } = request.body;
       const files: any = request?.files;
 
+      const req = request as RequestWithAdmin;
+      const currentUserId = req.user._id;
 
       let task = await MongoService.findOne(MONGO_DB_EXEM, this.task, {
         query: {
-          _id: request.params.id
+          _id: request.params.id,
+          userAdminId: currentUserId
         }
       })
       if (!task) {
@@ -339,57 +390,7 @@ class taskController {
       next(error);
     }
   };
-  // public updateNote = async (
-  //   request: Request,
-  //   response: Response,
-  //   next: NextFunction
-  // ) => {
-  //   try {
-  //     // Extract the data from the request body
-  //     const { newText, taskId, noteId } = request.body;
 
-  //     // Check if all required fields are present
-  //     if (!newText || !taskId || !noteId) {
-  //       throw new Error(ERROR_MESSAGES.COMMON.REQUIRED.replace(':attribute', `newtext, callID, and noteID are required`));
-  //     }
-
-  //     // Convert callId and noteId to ObjectId
-  //     const taskObjectId = new mongoose.Types.ObjectId(taskId);
-  //     const noteObjectId = new mongoose.Types.ObjectId(noteId);
-
-
-  //     // Perform the update operation
-  //     const result = await MongoService.findOneAndUpdate(
-  //       MONGO_DB_EXEM,
-  //       this.task,
-  //       {
-  //         query: { _id: taskObjectId, 'notes._id': noteObjectId },
-  //         updateData: { $set: { 'notes.$.text': newText } },
-  //         updateOptions: { new: true }
-  //       }
-  //     );
-
-  //     // Check if the result is valid
-  //     if (!result) {
-  //       return response.status(404).json({ message: 'task or note not found' });
-  //     }
-
-  //     // Send success response
-  //     successMiddleware(
-  //       {
-  //         message: SUCCESS_MESSAGES.COMMON.UPDATE_SUCCESS.replace(':attribute', `note`),
-  //         data: result
-  //       },
-  //       request,
-  //       response,
-  //       next
-  //     );
-  //   } catch (error) {
-  //     // Log error and pass to the error handler middleware
-  //     logger.error(`Error updating note: ${error}`);
-  //     next(error);
-  //   }
-  // };
 
   public updateNote = async (
     request: Request,
@@ -399,18 +400,12 @@ class taskController {
     try {
       const { text, taskId, noteId } = request.body;
       const files: any = request?.files;
-  
-      // Validate required fields
-      if (!text || !taskId || !noteId) {
-        return response.status(400).json({
-          message: ERROR_MESSAGES.COMMON.REQUIRED.replace(':attribute', 'text, taskId, and noteId')
-        });
-      }
-  
+
+
       // Convert IDs to ObjectId
       const taskObjectId = new mongoose.Types.ObjectId(taskId);
       const noteObjectId = new mongoose.Types.ObjectId(noteId);
-  
+
       // Validate the existence of the task
       let task = await MongoService.findOne(MONGO_DB_EXEM, this.task, {
         query: { _id: taskObjectId }
@@ -418,13 +413,13 @@ class taskController {
       if (!task) {
         return response.status(404).json({ message: ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'task') });
       }
-  
+
       // Validate and handle files
       const fileImageTasks = [{ type: 'image', fileArray: ['image'] }];
       const fileVideoTasks = [{ type: 'video', fileArray: ['video'] }];
       const fileAudioTasks = [{ type: 'audio', fileArray: ['audio'] }];
       const fileDocumentTasks = [{ type: 'document', fileArray: ['document'] }];
-  
+
       for (const file of files?.image || []) {
         await validateFile(file, 'image', COMMON_CONSTANT.IMAGE_EXT_ARRAY);
       }
@@ -437,18 +432,18 @@ class taskController {
       for (const file of files?.document || []) {
         await validateFile(file, 'document', COMMON_CONSTANT.DOCUMENT_EXT_ARRAY);
       }
-  
+
       // Handle file uploads
       const { imagePictures } = await fileUploadHandle(files, fileImageTasks, false);
       const { videoData } = await videoFileUploadHandle(files, fileVideoTasks, false);
       const { audioData } = await audioFileUploadHandle(files, fileAudioTasks, false);
       const { documentData } = await pdfFileUploadHandle(files, fileDocumentTasks, false);
-  
+
       logger.info("============imagePictures", imagePictures);
       logger.info("============videoData", videoData);
       logger.info("============documentData", documentData);
       logger.info("============audioData", audioData);
-  
+
       // Update the specific note in the notes array
       const result = await MongoService.findOneAndUpdate(
         MONGO_DB_EXEM,
@@ -470,11 +465,11 @@ class taskController {
           updateOptions: { new: true }
         }
       );
-  
+
       if (!result) {
         return response.status(404).json({ message: 'Task or note not found' });
       }
-  
+
       successMiddleware(
         {
           message: SUCCESS_MESSAGES.COMMON.UPDATE_SUCCESS.replace(':attribute', 'note'),
@@ -489,10 +484,6 @@ class taskController {
       next(error);
     }
   };
-  
-  
-  
-
 
 
   public deleteNote = async (
@@ -504,10 +495,7 @@ class taskController {
       // Extract callId and noteId from request
       const { taskId, noteId } = request.body;
 
-      // Validate `callId` and `noteId`
-      if (!taskId || !noteId) {
-        return response.status(400).json({ message: 'Call ID and note ID are required' });
-      }
+
 
       // Convert `callId` and `noteId` to ObjectId
       const taskObjectId = new mongoose.Types.ObjectId(taskId);
@@ -547,6 +535,137 @@ class taskController {
 
   }
 
+  public allUserDropdown = async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
+    try {
+
+
+      const result = await MongoService.find(MONGO_DB_EXEM, this.Admin, {
+        query: {}, select: 'name'
+      });
+
+      successMiddleware(
+        {
+          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `Task`),
+          data: result
+        },
+        request,
+        response,
+        next
+      );
+    } catch (error) {
+      logger.error(`Error fetching tasks: ${error}`);
+      next(error);
+    }
+  };
+
+
+  //====================================================================================================================
+
+  public taskCompleteActivity = async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const { companyName } = request.body;
+      const req = request as RequestWithAdmin;
+      const currentUserId = req.user._id;
+  
+      // Fetch the role of the current user
+      const adminResults = await MongoService.find(MONGO_DB_EXEM, this.Admin, {
+        query: { _id: currentUserId },
+        select: 'role'
+      });
+  
+  
+
+        const adminResult = adminResults[0];
+       
+  
+        let queryCondition: any = { companyName: companyName , status:  "complete"}; 
+       
+        if (adminResult.role !== 'superAdmin') {
+          queryCondition.userAdminId = currentUserId;
+        }
+  
+        const result = await MongoService.find(MONGO_DB_EXEM, this.task, {
+          query: queryCondition,
+          // Fetch the tasks based on the determined query condition
+          select: 'subject dueDate taskOwner assign status'
+        });
+  
+        successMiddleware(
+          {
+            message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `Task`),
+            data: result
+          },
+          request,
+          response,
+          next
+          
+        );
+    } catch (error) {
+      logger.error(`Error fetching tasks: ${error}`);
+      next(error);
+    }
+  };
+
+
+
+  public taskOpenActivity = async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const { companyName } = request.body;
+      const req = request as RequestWithAdmin;
+      const currentUserId = req.user._id;
+  
+      // Fetch the role of the current user
+      const adminResults = await MongoService.find(MONGO_DB_EXEM, this.Admin, {
+        query: { _id: currentUserId },
+        select: 'role'
+      });
+  
+  
+
+        const adminResult = adminResults[0];
+       
+  
+        let queryCondition: any = { companyName: companyName , status: { $ne: "complete" }}; 
+       
+        if (adminResult.role !== 'superAdmin') {
+          queryCondition.userAdminId = currentUserId;
+        }
+  
+        // Fetch the tasks based on the determined query condition
+        const result = await MongoService.find(MONGO_DB_EXEM, this.task, {
+          query: queryCondition,
+          select: 'subject dueDate taskOwner assign status'
+        });
+  
+        successMiddleware(
+          {
+            message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `Task`),
+            data: result
+          },
+          request,
+          response,
+          next
+        );
+      
+    } catch (error) {
+      logger.error(`Error fetching tasks: ${error}`);
+      next(error);
+    }
+  };
+  
+  
 }
 
 export default taskController;

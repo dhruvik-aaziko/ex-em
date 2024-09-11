@@ -10,6 +10,7 @@ import { successMiddleware } from '../../../middleware/response.middleware';
 import logger from '../../../logger';
 import { MongoService } from '../../../utils/mongoService';
 import NoteModel from './note.model'
+import authMiddleware from '../../../middleware/auth.middleware';
 
 
 const { MONGO_DB_EXEM } = getconfig();
@@ -36,10 +37,10 @@ class NoteController implements Controller {
             this.uploadExcelData
         );
 
-        this.router.post(`${this.path}/createNote`, this.createNote);
-        this.router.post(`${this.path}/getNote`, this.getNote);
-        this.router.put(`${this.path}/updateNote/:id`, this.updateNote);
-        this.router.delete(`${this.path}/deleteNote/:id`, this.deleteNote);
+        this.router.post(`${this.path}/createNote`,authMiddleware, this.createNote);
+        this.router.post(`${this.path}/getNote`,authMiddleware, this.getNote);
+        this.router.put(`${this.path}/updateNote/:id`,authMiddleware, this.updateNote);
+        this.router.delete(`${this.path}/deleteNote/:id`,authMiddleware, this.deleteNote);
       }
     private uploadExcelData = async (
         request: Request,

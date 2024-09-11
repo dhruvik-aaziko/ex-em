@@ -23,6 +23,7 @@ export = Object.freeze({
   LINK:'link',
   MEETING:'meeting',
   CALL:'call',
+  SHEET:'sheet',
 
   DASHBOARD :'dashboard',
   COMPANY:'company',

@@ -12,6 +12,9 @@ import { MongoService } from '../../utils/mongoService';
 import noteContaceInfoModel from './noteContaceInfo'
 import exEmModel from './exEm.model';
 import exEmTry from './exEm2.model'
+import authMiddleware from '../../middleware/auth.middleware';
+import sheetModel from './sheet/sheet.model';
+import { KinesisVideoWebRTCStorage } from 'aws-sdk';
 
 const { MONGO_DB_EXEM } = getconfig();
 
@@ -21,6 +24,7 @@ class exEmController implements Controller {
     public exEm = exEmModel
     public noteContaceInfo = noteContaceInfoModel
     public exEm2 = exEmTry
+    public sheet = sheetModel
 
 
     constructor() {
@@ -31,6 +35,7 @@ class exEmController implements Controller {
 
         this.router.post(
             `${this.path}/exalUplode`,
+            authMiddleware,
             uploadHandler.fields([
                 { name: "file", maxCount: 1 },
             ]),
@@ -42,14 +47,14 @@ class exEmController implements Controller {
         this.router.post(`${this.path}/nexus`, this.companyNexus);
         this.router.post(`${this.path}/productNexus`, this.productNexus);
         this.router.get(`${this.path}/mainImportProduct`, this.mainImportProduct);
-        this.router.get(`${this.path}/getLast12MonthsReport`, this.getLast12MonthsReport);
+        this.router.post(`${this.path}/getLast12MonthsReport`, authMiddleware, this.getLast12MonthsReport);
         this.router.get(`${this.path}/getPortAnalysis`, this.getPortAnalysis);
         this.router.get(`${this.path}/similarBuyer`, this.similarBuyer);
 
         //9
 
-        this.router.post(`${this.path}/buyerSeller`, this.buyerSeller);
-        this.router.post(`${this.path}/getUniqueBuyers`, this.getUniqueBuyers);
+        this.router.post(`${this.path}/buyerSeller`, authMiddleware, this.buyerSeller);
+        this.router.post(`${this.path}/getUniqueBuyers`, authMiddleware, this.getUniqueBuyers);
         //this.router.post(`${this.path}/companyData`, this.companyData);
 
 
@@ -63,9 +68,10 @@ class exEmController implements Controller {
         this.router.post(`${this.path}/hsCode`, this.hsCode);
         this.router.post(`${this.path}/product`, this.product);
         this.router.post(`${this.path}/bCountry`, this.bCountry);
+        this.router.post(`${this.path}/try`, this.try);
 
         //
-        this.router.post(`${this.path}/productInfo`, this.productInfo);
+        this.router.post(`${this.path}/productInfo`, authMiddleware, this.productInfo);
         this.router.post(`${this.path}/sellerInfo`, this.sellerInfo);
         this.router.put(`${this.path}/updateContactInfo`, this.updateContactInfo);
 
@@ -78,85 +84,185 @@ class exEmController implements Controller {
         next: NextFunction
     ) => {
         try {
-            const files: any = request.files; // Ensure files are correctly populated from your request
-
+            const files: any = request.files;
+    
             if (!files || !files.file || files.file.length === 0) {
                 return response.status(400).json({
                     message: 'No file uploaded. Please upload an Excel file.',
                 });
             }
-
+    
             const allowedMimeTypes = [
                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 'application/vnd.ms-excel'
             ];
             const file = files.file[0];
-
+    
             if (!allowedMimeTypes.includes(file.mimetype)) {
                 return response.status(415).json({
                     message: 'Invalid file type. Please upload an Excel file.',
                 });
             }
-
+    
             const filePath = file.path;
             const workbook = XLSX.readFile(filePath);
             const sheetName = workbook.SheetNames[0];
             const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-
-
-
+            //console.log(`Uploaded file name: ${file.originalname}`);
+    
             if (!Array.isArray(sheetData) || sheetData.length === 0) {
                 return response.status(400).json({
                     message: 'The Excel file is empty or invalid.',
                 });
             }
-            console.log(sheetData)
+    
+            // Prepare documents for bulk insert
             const documents = sheetData.map((row: any) => ({
-
-                date: typeof row.date === 'string' ? new Date(row.date.split('/').reverse().join('-')) : null,
-                // date: row.date || null,
-                shipmentId: row['shipment id '] ? parseInt(row['shipment id '], 10) : null,
-                hsCode: row['hs code'] ? parseInt(row['hs code'], 10) : null,
-                hsCode_1: row['hs code_1'] ? parseInt(row['hs code_1'], 10) : null,
-                industry: row['indutry'] || null,
-                product: row['prodcut'] || null,
-                bCountry: row['b cntry'] || null,
-                buyer: row.buyer || null,
-                dPort: row['D port'] || null,
-                sCountry: row['S cntry'] || null,
-                seller: row.seller || null,
-                sPort: row['s port'] || null,
-                portCode: row['port code'] || null,
-                unit: row.unit || null,
-                qty: typeof row.qty === 'string' ? parseInt(row.qty.replace(/,/g, ''), 10) : row.qty || NUMERICAL.ZERO,
-                value: typeof row.value === 'string' ? parseFloat(row.value.replace(/[$,]/g, '')) : row.value || NUMERICAL.ZERO,
-                pricePerUnit: typeof row['price/unit'] === 'string' ? parseFloat(row['price/unit'].replace(/[$,]/g, '')) : row['price/unit'] || NUMERICAL.ZERO,
-                emptyField: row['__EMPTY'] || '-',
-                notes: '-',
-                contactInfo: ''
-
+                insertOne: {
+                    document: {
+                        date: typeof row.date === 'string' ? new Date(row.date.split('/').reverse().join('-')) : null,
+                        shipmentId: row['shipment id '] ? parseInt(row['shipment id '], 10) : null,
+                        hsCode: row['hs code'] ? parseInt(row['hs code'], 10) : null,
+                        hsCode_1: row['hs code_1'] ? parseInt(row['hs code_1'], 10) : null,
+                        qty: typeof row.qty === 'string' ? parseInt(row.qty.replace(/,/g, '')) : row.qty || 0,
+                        value: typeof row.value === 'string' ? parseFloat(row.value.replace(/[$,]/g, '')) : row.value || 0,
+                        pricePerUnit: typeof row['price/unit'] === 'string' ? parseFloat(row['price/unit'].replace(/[$,]/g, '')) : row['price/unit'] || 0,
+                        industry: row['indutry'] || null,
+                        product: row['prodcut'] || null,
+                        bCountry: row['b cntry'] || null,
+                        buyer: row.buyer || null,
+                        dPort: row['D port'] || null,
+                        sCountry: row['S cntry'] || null,
+                        seller: row.seller || null,
+                        sPort: row['s port'] || null,
+                        portCode: row['port code'] || null,
+                        unit: row.unit || null,
+                        emptyField: row['__EMPTY'] || '-',
+                        sheetName:file.originalname
+                      
+                        
+                    }
+                }
             }));
-
-            console.log('Mapped Documents:', documents); // Log the data to be inserted
-
-            // Batch size for insertion
-            const batchSize = 100; // Adjust as needed
+    
+            const batchSize = 1000; // Experiment with optimal size
+            const maxConcurrentBatches = 5; // Limit concurrency to avoid overwhelming MongoDB
+    
+            const insertBatches = async (batchStart: number) => {
+                const batch = documents.slice(batchStart, batchStart + batchSize);
+    
+                await MongoService.bulkWrite(MONGO_DB_EXEM, this.exEm, batch);
+            };
+    
+            const batchPromises = [];
+    
             for (let i = 0; i < documents.length; i += batchSize) {
-                const batch = documents.slice(i, i + batchSize);
-                const result = await MongoService.insertMany(MONGO_DB_EXEM, this.exEm, { insert: batch });
-                console.log(`Insert Result (Batch ${i / batchSize + 1}):`, result); // Log the result of the insertion
+                if (batchPromises.length >= maxConcurrentBatches) {
+                    await Promise.all(batchPromises); // Wait for the current batch to finish before starting more
+                    batchPromises.length = 0; // Reset for new concurrent batches
+                }
+                batchPromises.push(insertBatches(i));
             }
-
+    
+            // Ensure any remaining batches are also completed
+            if (batchPromises.length > 0) {
+                await Promise.all(batchPromises);
+            }
+            await MongoService.create(MONGO_DB_EXEM, this.sheet, { insert: { sheetName: file.originalname } });
             return response.status(200).json({
                 message: 'Sheet data has been successfully uploaded and inserted.',
                 data: documents.length
             });
-
+    
         } catch (error) {
             console.error('Error in uploading Excel data:', error);
             next(error);
         }
-    }
+    };
+    
+    
+    // private uploadExcelData = async (
+    //     request: Request,
+    //     response: Response,
+    //     next: NextFunction
+    // ) => {
+    //     try {
+    //         const files: any = request.files; // Ensure files are correctly populated from your request
+    
+    //         if (!files?.file?.length) {
+    //             return response.status(400).json({
+    //                 message: 'No file uploaded. Please upload an Excel file.',
+    //             });
+    //         }
+    
+    //         const allowedMimeTypes = [
+    //             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    //             'application/vnd.ms-excel'
+    //         ];
+    //         const file = files.file[0];
+    
+    //         if (!allowedMimeTypes.includes(file.mimetype)) {
+    //             return response.status(415).json({
+    //                 message: 'Invalid file type. Please upload an Excel file.',
+    //             });
+    //         }
+    
+    //         const workbook = XLSX.readFile(file.path);
+    //         const sheetName = workbook.SheetNames[0];
+    //         const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+    
+    //         console.log(`Uploaded file name: ${file.originalname}`);
+    
+    //         if (!Array.isArray(sheetData) || !sheetData.length) {
+    //             return response.status(400).json({
+    //                 message: 'The Excel file is empty or invalid.',
+    //             });
+    //         }
+    //         logger.info("================>>>", sheetName);
+    
+    //         const documents = sheetData.map((row: any) => ({
+    //             date: typeof row.date === 'string' ? new Date(row.date.split('/').reverse().join('-')) : null,
+    //             shipmentId: row['shipment id '] ? parseInt(row['shipment id '], 10) : null,
+    //             hsCode: row['hs code'] ? parseInt(row['hs code'], 10) : null,
+    //             hsCode_1: row['hs code_1'] ? parseInt(row['hs code_1'], 10) : null,
+    //             industry: row['indutry'] || null,
+    //             product: row['prodcut'] || null,
+    //             bCountry: row['b cntry'] || null,
+    //             buyer: row.buyer || null,
+    //             dPort: row['D port'] || null,
+    //             sCountry: row['S cntry'] || null,
+    //             seller: row.seller || null,
+    //             sPort: row['s port'] || null,
+    //             portCode: row['port code'] || null,
+    //             unit: row.unit || null,
+    //             qty: typeof row.qty === 'string' ? parseInt(row.qty.replace(/,/g, ''), 10) : row.qty || NUMERICAL.ZERO,
+    //             value: typeof row.value === 'string' ? parseFloat(row.value.replace(/[$,]/g, '')) : row.value || NUMERICAL.ZERO,
+    //             pricePerUnit: typeof row['price/unit'] === 'string' ? parseFloat(row['price/unit'].replace(/[$,]/g, '')) : row['price/unit'] || NUMERICAL.ZERO,
+    //             emptyField: row['__EMPTY'] || '-',
+    //             sheetName:file.originalname
+    //         }));
+    
+    //         // Batch size for insertion
+    //         const batchSize = 100; // Adjust as needed
+    //         for (let i = 0; i < documents.length; i += batchSize) {
+    //             const batch = documents.slice(i, i + batchSize);
+    //             await MongoService.insertMany(MONGO_DB_EXEM, this.exEm2, { insert: batch });
+    //         }
+    
+    //         // Pass fileInfo wrapped in an array to match expected input for `model.create`
+    //         await MongoService.create(MONGO_DB_EXEM, this.sheet, { insert: { sheetName: file.originalname } });
+    
+    //         return response.status(200).json({
+    //             message: 'Sheet data has been successfully uploaded and inserted.',
+    //             data: documents.length
+    //         });
+    
+    //     } catch (error) {
+    //         console.error('Error in uploading Excel data:', error);
+    //         next(error);
+    //     }
+    // }
+    
 
 
 
@@ -494,21 +600,16 @@ class exEmController implements Controller {
     };
 
 
-    private getLast12MonthsReport = async (
+    public getLast12MonthsReport = async (
         request: Request,
         response: Response,
         next: NextFunction
     ) => {
         try {
-            let { companyName } = request.body;
-            const year = 2024
-            companyName = "H&m"
+            const { companyName } = request.body;
 
             if (!companyName) {
-                return response.status(400).json({
-                    success: false,
-                    message: "Company name is required"
-                });
+                return "Company Name is required";
             }
 
             // Calculate the start and end dates for the last 12 months
@@ -516,40 +617,23 @@ class exEmController implements Controller {
             const startDate = new Date();
             startDate.setMonth(endDate.getMonth() - 12);
 
-            const startDateStr: string = startDate.toLocaleDateString('en-GB'); // Format: dd/MM/yyyy
-            const endDateStr = endDate.toLocaleDateString('en-GB'); // Format: dd/MM/yyyy
-            console.log(endDateStr, startDateStr);
+            logger.info(startDate, endDate);
 
-            const a = startDateStr.toString()
-            const b = endDate.toString()
-
-            console.log(endDate, startDate);
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
                 {
                     $match: {
-                        company: companyName,
+                        buyer: companyName,
                         date: {
-                            $gte: a, $lte: b
+                            $gte: startDate, $lte: endDate
                         }
                     }
                 },
                 {
                     $addFields: {
-                        dateObj: {
-                            $dateFromString: {
-                                dateString: "$date",
-                                format: "%d/%m/%Y"
-                            }
-                        },
                         month: {
                             $dateToString: {
                                 format: "%Y-%m",
-                                date: {
-                                    $dateFromString: {
-                                        dateString: "$date",
-                                        format: "%d/%m/%Y"
-                                    }
-                                }
+                                date: "$date"
                             }
                         }
                     }
@@ -587,7 +671,8 @@ class exEmController implements Controller {
                     }
                 }
             ]);
-            console.log(data);
+
+
 
             // Generate a list of months for comparison
             const months = Array.from({ length: 12 }, (_, i) => {
@@ -604,9 +689,6 @@ class exEmController implements Controller {
                 return acc;
             }, {});
 
-
-
-            // Send the aggregated data as a response
             successMiddleware(
                 {
                     message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `em_im`),
@@ -618,10 +700,11 @@ class exEmController implements Controller {
             );
 
         } catch (error) {
-            logger.error(`There was an issue into data fathimg .: ${error}`);
+            logger.error(`There was an issue fetching data: ${error}`);
             next(error);
         }
-    }
+    };
+
 
     private getPortAnalysis = async (
         request: Request,
@@ -983,23 +1066,48 @@ class exEmController implements Controller {
     private productInfo = async (
         request: Request,
         response: Response,
-        next: NextFunction  
+        next: NextFunction
     ) => {
         try {
             // Extract query parameters from request body
             const { companyName } = request.body;
-
-
-
+    
             if (!companyName) {
-                response.send("please provide companyName ")
-
+                return response.status(400).send("Please provide companyName");
             }
-
-            const data = await MongoService.find(MONGO_DB_EXEM, this.exEm, {
-                query: { buyer: companyName },
-                select: ' product qty unit pricePerUnit value'
-            });
+    
+            // MongoDB aggregation pipeline
+            const pipeline = [
+                {
+                    $match: { buyer: companyName } // Filter by companyName
+                },
+                {
+                    $group: {
+                        _id: {
+                            product: "$product",
+                            pricePerUnit: "$pricePerUnit"
+                        },
+                        totalQty: { $sum: "$qty" },
+                        totalValue: { $sum: "$value" }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        product: "$_id.product",
+                        pricePerUnit: "$_id.pricePerUnit",
+                        qty: "$totalQty",
+                        value: "$totalValue"
+                    }
+                }
+            ];
+    
+            const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, pipeline);
+    
+            if (data.length === 0) {
+                return response.status(404).send("No data found for the provided companyName");
+            }
+    
             successMiddleware(
                 {
                     message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'productInfo'),
@@ -1009,16 +1117,13 @@ class exEmController implements Controller {
                 response,
                 next
             );
-        }
-
-
-
-        catch (error) {
+        } catch (error) {
             logger.error(`There was an issue fetching data: ${error}`);
             next(error);
         }
     };
     
+
     private sellerInfo = async (
         request: Request,
         response: Response,
@@ -1027,18 +1132,51 @@ class exEmController implements Controller {
         try {
             // Extract query parameters from request body
             const { companyName } = request.body;
-
-
-
+    
             if (!companyName) {
-                response.send("please provide companyName ")
-
+                return response.status(400).send("Please provide companyName");
             }
-
-            const data = await MongoService.find(MONGO_DB_EXEM, this.exEm, {
-                query: { buyer: companyName },
-                select: 'seller product qty unit pricePerUnit value dPort sPort'
-            });
+    
+            // MongoDB aggregation pipeline
+            const pipeline = [
+                {
+                    $match: { buyer: companyName } // Filter by companyName
+                },
+                {
+                    $group: {
+                        _id: {
+                            product: "$product",
+                            pricePerUnit: "$pricePerUnit",
+                            dPort: "$dPort",
+                            seller: "$seller",
+                            sPort: "$sPort",
+                            unit: "$unit"
+                        },
+                        totalQty: { $sum: "$qty" },
+                        totalValue: { $sum: "$value" }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        product: "$_id.product",
+                        pricePerUnit: "$_id.pricePerUnit",
+                        dPort: "$_id.dPort",
+                        seller: "$_id.seller",
+                        sPort: "$_id.sPort",
+                        unit: "$_id.unit",
+                        qty: "$totalQty",
+                        value: "$totalValue"
+                    }
+                }
+            ];
+    
+            const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, pipeline);
+    
+            if (data.length === 0) {
+                return response.status(404).send("No data found for the provided companyName");
+            }
+    
             successMiddleware(
                 {
                     message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'productInfo'),
@@ -1048,15 +1186,12 @@ class exEmController implements Controller {
                 response,
                 next
             );
-        }
-
-
-
-        catch (error) {
+        } catch (error) {
             logger.error(`There was an issue fetching data: ${error}`);
             next(error);
         }
     };
+    
 
     private createContactNotes = async (
         request: Request,
@@ -1136,7 +1271,8 @@ class exEmController implements Controller {
                 query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
             }
             if (product) {
-                query.product = product;
+                // Use regex for case-insensitive search
+                query.product = { $regex: product, $options: "i" };
             }
 
             if (Object.keys(query).length === 0) {
@@ -1156,10 +1292,9 @@ class exEmController implements Controller {
                             _id: {
                                 bCountry: "$bCountry",
                                 hsCode_1: "$hsCode_1",
-                                product: "$product",
-                                date: "$date",
                                 industry: "$industry",
-                                buyer: "$buyer"
+                                buyer: "$buyer",
+                               
                             }
                         }
                     },
@@ -1168,10 +1303,10 @@ class exEmController implements Controller {
                             _id: 0,
                             bCountry: "$_id.bCountry",
                             hsCode_1: "$_id.hsCode_1",
-                            product: "$_id.product",
-                            date: "$_id.date",
+                           
                             industry: "$_id.industry",
-                            buyer: "$_id.buyer"
+                            buyer: "$_id.buyer",
+                           
                         }
                     }
                 ],
@@ -1331,7 +1466,7 @@ class exEmController implements Controller {
             successMiddleware(
                 {
                     message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'hscode'),
-                    data: {companyData:companyData,result:result} // The projection is applied directly in the aggregation pipeline
+                    data: { companyData: companyData, result: result } // The projection is applied directly in the aggregation pipeline
                 },
                 request,
                 response,
@@ -1412,7 +1547,7 @@ class exEmController implements Controller {
                 ]
             );
 
-            
+
 
             successMiddleware(
                 {
@@ -1521,6 +1656,36 @@ class exEmController implements Controller {
         } catch (error) {
             // Log error and pass it to the next middleware
             logger.error(`Error in updateContactInfo: ${error}`);
+            next(error);
+        }
+    };
+
+
+    private try = async (
+        request: Request,
+        response: Response,
+        next: NextFunction
+    ) => {
+        try {
+            // Perform aggregation to get unique product values
+            const result = await MongoService.find(
+                MONGO_DB_EXEM,
+                this.exEm,
+                {}
+            );
+
+            successMiddleware(
+                {
+                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'Country'),
+                    data: result // The projection is applied directly in the aggregation pipeline
+                },
+                request,
+                response,
+                next
+            );
+
+        } catch (error) {
+            logger.error(`There was an issue fetching Country: ${error}`);
             next(error);
         }
     };

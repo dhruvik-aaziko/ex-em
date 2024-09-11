@@ -10,6 +10,7 @@ import { successMiddleware } from '../../../middleware/response.middleware';
 import logger from '../../../logger';
 import { MongoService } from '../../../utils/mongoService';
 import linkModel from './links.model'
+import exEmModel from '../exEm.model';
 
 
 const { MONGO_DB_EXEM } = getconfig();
@@ -19,6 +20,7 @@ class linkController implements Controller {
     public router = Router();
 
     public link = linkModel
+    public ExEm = exEmModel
 
 
 
@@ -152,7 +154,7 @@ class linkController implements Controller {
     };
 
     // Get contact info by name
-    public getlink = async (
+    public getlink = async (        
         request: Request,
         response: Response,
         next: NextFunction
@@ -160,16 +162,21 @@ class linkController implements Controller {
         try {
             const { companyName } = request.body;
 
+            const companyData = await MongoService.findOne(MONGO_DB_EXEM, this.ExEm, { query: { buyer: companyName }, select: 'industry buyer bCountry' });
+
             const result = await MongoService.find(MONGO_DB_EXEM, this.link, { query: { companyName: companyName } });
 
             if (!result) {
-                return response.status(404).json({ message: 'Contact info not found' });
+                return response.status(404).json({
+                    message: 'Contact info not found'
+
+                });
             }
 
             successMiddleware(
                 {
                     message: 'Contact information fetched successfully',
-                    data: result
+                    data: { companyData, result }
                 },
                 request,
                 response,

@@ -12,7 +12,7 @@ import { MongoService } from '../../../utils/mongoService';
 import contaceInfoModel from './contactInfo.model'
 import { ObjectId } from 'mongodb';
 import mongoose from 'mongoose';
-
+import authMiddleware from '../../../middleware/auth.middleware';
 
 const { MONGO_DB_EXEM } = getconfig();
 
@@ -38,15 +38,15 @@ class ContaceInfoController implements Controller {
             this.uploadExcelData
         );
 
-        this.router.post(`${this.path}/createContactInfo`, this.createContactInfo);
-        this.router.post(`${this.path}/getContactInfo`, this.getContactInfo);
-        this.router.put(`${this.path}/updateContactInfo/:id`, this.updateContactInfo);
-        this.router.delete(`${this.path}/deleteContactInfo/:id`, this.deleteContactInfo);
+        this.router.post(`${this.path}/createContactInfo`,authMiddleware, this.createContactInfo);
+        this.router.post(`${this.path}/getContactInfo`,authMiddleware, this.getContactInfo);
+        this.router.put(`${this.path}/updateContactInfo/:id`,authMiddleware, this.updateContactInfo);
+        this.router.delete(`${this.path}/deleteContactInfo/:id`,authMiddleware, this.deleteContactInfo);
 
         // Routes for notes within tasks
-        this.router.put(`${this.path}/addnote/:id`, this.addNote); // Add a new note
-        this.router.put(`${this.path}/updatenote`, this.updateNote); // Update a note
-        this.router.delete(`${this.path}/deletenote`, this.deleteNote); // Delete a note
+        this.router.put(`${this.path}/addnote/:id`,authMiddleware, this.addNote); // Add a new note
+        this.router.put(`${this.path}/updatenote`,authMiddleware, this.updateNote); // Update a note
+        this.router.delete(`${this.path}/deletenote`,authMiddleware, this.deleteNote); // Delete a note
     }
     private uploadExcelData = async (
         request: Request,

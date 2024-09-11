@@ -115,6 +115,48 @@ class taskValidation {
         ])
 
 
+    addNoteToTaskValidation = () =>
+        validate([
+            body('text')
+                .notEmpty()
+                .withMessage(ERROR_MESSAGES.COMMON.REQUIRED.replace(':attribute', 'companyName'))
+                .isString()
+                .withMessage(ERROR_MESSAGES.COMMON.STRING.replace(':attribute', 'companyName')),
+        ])
+
+    updateNoteValidation = () =>
+        validate([
+            body('text')
+                .notEmpty()
+                .withMessage(ERROR_MESSAGES.COMMON.REQUIRED.replace(':attribute', 'text'))
+                .isString()
+                .withMessage(ERROR_MESSAGES.COMMON.STRING.replace(':attribute', 'text')),
+            body('taskId')
+                .notEmpty()
+                .withMessage(ERROR_MESSAGES.COMMON.REQUIRED.replace(':attribute', 'taskId'))
+                .isString()
+                .withMessage(ERROR_MESSAGES.COMMON.STRING.replace(':attribute', 'taskId')),
+            body('noteId')
+                .notEmpty()
+                .withMessage(ERROR_MESSAGES.COMMON.REQUIRED.replace(':attribute', 'noteId'))
+                .isString()
+                .withMessage(ERROR_MESSAGES.COMMON.STRING.replace(':attribute', 'noteId')),
+        ])
+
+        deleteNoteValidation = () =>
+        validate([
+            body('taskId')
+                .notEmpty()
+                .withMessage(ERROR_MESSAGES.COMMON.REQUIRED.replace(':attribute', 'taskId'))
+                .isString()
+                .withMessage(ERROR_MESSAGES.COMMON.STRING.replace(':attribute', 'taskId')),
+            body('noteId')
+                .notEmpty()
+                .withMessage(ERROR_MESSAGES.COMMON.REQUIRED.replace(':attribute', 'noteId'))
+                .isString()
+                .withMessage(ERROR_MESSAGES.COMMON.STRING.replace(':attribute', 'noteId'))
+          
+        ])
 }
 
 export default taskValidation;

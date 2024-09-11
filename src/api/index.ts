@@ -9,6 +9,7 @@ import NoteController from './ex_em/notes/noteController';
 import taskController from './ex_em/task/taskController';
 import MeetingController from './ex_em/meeting/meetingController';
 import CallController from './ex_em/call/callController';
+import SheetController from './ex_em/sheet/sheetController';
 
 /**
  * Array of controller instances for the application.
@@ -29,6 +30,7 @@ export const initializesAllControllers = [
    new NoteController(),
    new taskController(),
    new MeetingController(),
-   new CallController()
+   new CallController(),
+   new SheetController(),
     
 ]
