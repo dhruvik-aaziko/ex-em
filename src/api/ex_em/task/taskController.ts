@@ -197,6 +197,8 @@ class taskController {
       const { audioData } = await audioFileUploadHandle(files, fileAudioTasks, false);
       const { documentData } = await pdfFileUploadHandle(files, fileDocumentTasks, false);
 
+
+      console.log(req.body)
       const addTask = await MongoService.create(MONGO_DB_EXEM, this.task, {
         insert: {
           userAdminId: currentUserId,

@@ -47,12 +47,48 @@ class CallController {
     request: Request,
     response: Response,
     next: NextFunction
-  ) => {
+  ) => {  
     try {
-      const CallData = request.body;
+      const {
+        name,
+        userAdminId,
+        agent,
+        phoneNo,
+        company,
+        position,
+        callType,
+        callStatus,
+        scheduledAt,
+        callDuration,
+        subject,
+        voiceRecording,
+        callPurpose,
+        callResult,
+        description,
+        text
+      } = request.body;
       const result = await MongoService.create(MONGO_DB_EXEM, this.Call, {
-        insert: CallData
-      });
+        insert: {
+          name:name,
+          userAdminId:userAdminId,
+          agent:agent,
+          phoneNo:phoneNo,
+          company:company,
+          position:position,
+          callType:callType,
+          callStatus:callStatus,
+          scheduledAt:scheduledAt,
+          callDuration:callDuration,
+          subject:subject,
+          voiceRecording:voiceRecording,
+          callPurpose:callPurpose,
+          callResult:callResult,
+          description:description,
+          notes: {
+            text:text,
+          }
+      }
+    });
 
       successMiddleware(
         {
