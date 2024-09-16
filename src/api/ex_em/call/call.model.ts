@@ -20,7 +20,7 @@ const callSchema: Schema = new mongoose.Schema({
     scheduledAt: { type: Date, required: true },
     callDuration: { type: String, required: true }, // Duration in seconds
     subject: { type: String, required: true },
-    voiceRecording: { type: String, required: false }, // Optional field
+    audio:[{ type: String, default: [] }] ,// Optional field
     callPurpose: { type: String, required: true },
     callResult: { type: String, required: true },
     description: { type: String, required: false },

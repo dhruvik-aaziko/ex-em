@@ -778,7 +778,7 @@ class taskController {
         const result = await MongoService.find(MONGO_DB_EXEM, this.task, {
           query: queryCondition,
           // Fetch the tasks based on the determined query condition
-          select: 'subject dueDate taskOwner assign status'
+          // select: 'subject dueDate taskOwner assign status'
         });
   
         successMiddleware(
