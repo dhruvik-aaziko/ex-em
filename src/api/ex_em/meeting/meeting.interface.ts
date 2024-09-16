@@ -16,4 +16,12 @@ export interface meeting {
     participants?: string[];
     status?: string;
   }
+
+  export interface Notes {
+    text: string;
+    video: string[];
+    photo: string[];
+    audio: string[];
+    documents: string[];
+}
   

@@ -30,10 +30,18 @@ class taskController {
   }
 
   private initializeRoutes() {
+
     this.router.post(
       `${this.path}/createTask`,
+      uploadHandler.fields([
+
+        { name: "image", maxCount: 1 },
+        { name: "video", maxCount: 1 },
+        { name: "audio", maxCount: 1 },
+        { name: "document", maxCount: 1 }
+
+      ]),
       authMiddleware,
-      this.validation.createTaskValidation(),
       this.createTask);
 
     this.router.post(
@@ -117,7 +125,7 @@ class taskController {
     next: NextFunction
   ) => {
     try {
-
+     
       const {
         taskOwner,
         companyName,
@@ -128,7 +136,8 @@ class taskController {
         assign,
         repeat,
         priority,
-        reminder
+        reminder,
+        text
       } = request.body;
 
       let task = await MongoService.findOne(MONGO_DB_EXEM, this.task, {
@@ -143,6 +152,7 @@ class taskController {
           repeat: repeat,
           priority: priority,
           reminder: new Date(reminder)
+     
         }
       })
 
@@ -153,6 +163,39 @@ class taskController {
 
       const req = request as RequestWithAdmin;
       const currentUserId = req.user._id;
+      
+      const files: any = request?.files;
+   console.log(files);
+   
+
+
+      const fileImageTasks = [{ type: 'image', fileArray: ['image'] }];
+      const fileVideoTasks = [{ type: 'video', fileArray: ['video'] }];
+      const fileAudioTasks = [{ type: 'audio', fileArray: ['audio'] }];
+      const fileDocumentTasks = [{ type: 'document', fileArray: ['document'] }];
+
+      for (let j = 0; j < files?.image?.length; j++) {
+        const file = files?.image[j];
+        await validateFile(/*res,*/  file, 'image', COMMON_CONSTANT.IMAGE_EXT_ARRAY, /*maxSizeCompany*/);
+
+      }
+      for (let j = 0; j < files?.video?.length; j++) {
+        const file = files?.video[j];
+        await validateFile(/*res,*/  file, 'video', COMMON_CONSTANT.VIDEO_EXT_ARRAY, /*maxSizeCompany*/);
+      }
+      for (let j = 0; j < files?.audio?.length; j++) {
+        const file = files?.audio[j];
+        await validateFile(/*res,*/  file, 'audio', COMMON_CONSTANT.AUDIO_EXT_ARRAY, /*maxSizeCompany*/);
+      }
+      for (let j = 0; j < files?.document?.length; j++) {
+        const file = files?.document[j];
+        await validateFile(/*res,*/  file, 'document', COMMON_CONSTANT.DOCUMENT_EXT_ARRAY, /*maxSizeCompany*/);
+      }
+
+      const { imagePictures } = await fileUploadHandle(files, fileImageTasks, false);
+      const { videoData } = await videoFileUploadHandle(files, fileVideoTasks, false);
+      const { audioData } = await audioFileUploadHandle(files, fileAudioTasks, false);
+      const { documentData } = await pdfFileUploadHandle(files, fileDocumentTasks, false);
 
       const addTask = await MongoService.create(MONGO_DB_EXEM, this.task, {
         insert: {
@@ -166,7 +209,15 @@ class taskController {
           assign: assign,
           repeat: repeat,
           priority: priority,
-          reminder: reminder
+          reminder: reminder,
+          notes: {
+            text:text,
+            photo: imagePictures,
+            video: videoData,
+            audio: audioData,
+            documents: documentData
+
+          },
         }
       });
 
@@ -184,6 +235,136 @@ class taskController {
       next(error);
     }
   };
+
+  // public createTask = async (
+  //   request: Request,
+  //   response: Response,
+  //   next: NextFunction
+  // ) => {
+  //   try {
+  //     // Destructure request body and files
+  //     const {
+  //       taskOwner,
+  //       companyName,
+  //       subject,
+  //       dueDate,
+  //       relatedTo,
+  //       status,
+  //       assign,
+  //       repeat,
+  //       priority,
+  //       reminder,
+  //       text
+  //     } = request.body;
+  
+  //     const files: any = request?.files;
+  
+  //     // Convert dates to ISO strings
+  //     const dueDateISO = new Date(dueDate).toISOString();
+  //     const reminderISO = new Date(reminder).toISOString();
+  
+  //     // Check if the task already exists
+  //     let existingTask = await MongoService.findOne(MONGO_DB_EXEM, this.task, {
+  //       query: {
+  //         taskOwner,
+  //         companyName,
+  //         subject,
+  //         dueDate: dueDateISO,
+  //         relatedTo,
+  //         status,
+  //         assign,
+  //         repeat,
+  //         priority,
+  //         reminder: reminderISO,
+          
+
+  //         // `notes` is an array, no need to compare it in this query
+  //       }
+  //     });
+  
+  //     if (existingTask) {
+  //       response.statusCode = STATUS_CODE.BAD_REQUEST;
+  //       throw new Error(ERROR_MESSAGES.COMMON.ALREADY_EXISTS.replace(':attribute', 'task'));
+  //     }
+  
+  //     // Access current user ID
+  //     const req = request as RequestWithAdmin;
+  //     const currentUserId = req.user._id;
+  
+  //     // Handle file uploads
+  //    const fileImageTasks = [{ type: 'image', fileArray: ['image'] }];
+  //     const fileVideoTasks = [{ type: 'video', fileArray: ['video'] }];
+  //     const fileAudioTasks = [{ type: 'audio', fileArray: ['audio'] }];
+  //     const fileDocumentTasks = [{ type: 'document', fileArray: ['document'] }];
+
+  //     for (let j = 0; j < files?.image?.length; j++) {
+  //       const file = files?.image[j];
+  //       await validateFile(/*res,*/  file, 'image', COMMON_CONSTANT.IMAGE_EXT_ARRAY, /*maxSizeCompany*/);
+
+  //     }
+  //     for (let j = 0; j < files?.video?.length; j++) {
+  //       const file = files?.video[j];
+  //       await validateFile(/*res,*/  file, 'video', COMMON_CONSTANT.VIDEO_EXT_ARRAY, /*maxSizeCompany*/);
+  //     }
+  //     for (let j = 0; j < files?.audio?.length; j++) {
+  //       const file = files?.audio[j];
+  //       await validateFile(/*res,*/  file, 'audio', COMMON_CONSTANT.AUDIO_EXT_ARRAY, /*maxSizeCompany*/);
+  //     }
+  //     for (let j = 0; j < files?.document?.length; j++) {
+  //       const file = files?.document[j];
+  //       await validateFile(/*res,*/  file, 'document', COMMON_CONSTANT.DOCUMENT_EXT_ARRAY, /*maxSizeCompany*/);
+  //     }
+
+  //     const { imagePictures } = await fileUploadHandle(files, fileImageTasks, false);
+  //     const { videoData } = await videoFileUploadHandle(files, fileVideoTasks, false);
+  //     const { audioData } = await audioFileUploadHandle(files, fileAudioTasks, false);
+  //     const { documentData } = await pdfFileUploadHandle(files, fileDocumentTasks, false);
+
+  
+  //     // Insert new task into the database
+  //     const newTask = await MongoService.create(MONGO_DB_EXEM, this.task, {
+  //       insert: {
+  //         userAdminId: currentUserId,
+  //         taskOwner,
+  //         companyName,
+  //         subject,
+  //         dueDate: dueDateISO,
+  //         relatedTo,
+  //         status,
+  //         assign,
+  //         repeat,
+  //         priority,
+  //         reminder: reminderISO,
+  //         notes: {
+  //           text:text,
+  //           photo: imagePictures,
+  //           video: videoData,
+  //           audio: audioData,
+  //           documents: documentData
+
+  //         },
+  //       }
+  //     });
+  
+  //     // Add file data to notes if present
+     
+  
+  //     // Respond with success message
+  //     successMiddleware(
+  //       {
+  //         message: SUCCESS_MESSAGES.COMMON.CREATE_SUCCESS.replace(':attribute', 'Task'),
+  //         data: newTask
+  //       },
+  //       request,
+  //       response,
+  //       next
+  //     );
+  //   } catch (error) {
+  //     logger.error(`Error creating task: ${error}`);
+  //     next(error);
+  //   }
+  // };
+
 
   public getTasks = async (
     request: Request,
@@ -402,7 +583,7 @@ class taskController {
       const files: any = request?.files;
 
 
-      // Convert IDs to ObjectId
+      // Convert IDs to ObjectId  
       const taskObjectId = new mongoose.Types.ObjectId(taskId);
       const noteObjectId = new mongoose.Types.ObjectId(noteId);
 
@@ -563,7 +744,7 @@ class taskController {
   };
 
 
-  //====================================================================================================================
+  //========================================== =================== 
 
   public taskCompleteActivity = async (
     request: Request,
@@ -645,8 +826,8 @@ class taskController {
   
         // Fetch the tasks based on the determined query condition
         const result = await MongoService.find(MONGO_DB_EXEM, this.task, {
-          query: queryCondition,
-          select: 'subject dueDate taskOwner assign status'
+          query: queryCondition
+         
         });
   
         successMiddleware(

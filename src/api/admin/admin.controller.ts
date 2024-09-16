@@ -265,6 +265,10 @@ class adminController implements Controller {
         adminData: {
           _id: admin._id,
           email: admin.email,
+          name: admin.name,
+          lastName: admin.lastName,
+          role: admin.role,
+
         },
         tokenData: token,
       };
@@ -634,7 +638,7 @@ class adminController implements Controller {
 
       await MongoService.findOneAndUpdate(MONGO_DB_EXEM, this.Admin, {
         query: { _id: adminId },
-        updateData: { $set: { token: "" } }
+        updateData: { $ : { token: "" } }
       });
 
       return successMiddleware(

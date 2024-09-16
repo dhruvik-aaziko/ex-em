@@ -17,15 +17,19 @@ import { successMiddleware } from '../../../middleware/response.middleware';
 import logger from '../../../logger';
 import { MongoService } from '../../../utils/mongoService';
 import meetingModel from './meeting.model';
-import { ObjectId } from 'mongodb';
 import mongoose from 'mongoose';
-
+import authMiddleware from '../../../middleware/auth.middleware';
+import { RequestWithAdmin } from '../../../interfaces/requestWithAdmin.interface';
+import adminModel from '../../admin/admin.model';
+import contaceInfoModel from '../contactinfo/contactInfo.model'
 const { MONGO_DB_EXEM } = getconfig();
 
 class MeetingController {
   public path = `/${ROUTES.MEETING}`;
   public router = Router();
   public Meeting = meetingModel;
+  public Admin = adminModel;
+  public ContaceInfo = contaceInfoModel
 
   constructor() {
     this.initializeRoutes();
@@ -41,6 +45,27 @@ class MeetingController {
     this.router.put(`${this.path}/addnote/:id`, this.addNoteToMeeting); // Add a new note
     this.router.put(`${this.path}/updatenote`, this.updateNote); // Update a note
     this.router.delete(`${this.path}/deletenote`, this.deleteNote); // Delete a note
+
+
+    this.router.post(`${this.path}/personName`, this.personName);
+    this.router.post(`${this.path}/phone`, this.phone);
+    this.router.post(`${this.path}/email`, this.email);
+    this.router.post(`${this.path}/phoneEmail`, this.phoneEmail);
+
+
+    this.router.post(
+      `${this.path}/meetingOpenActivity`,
+      authMiddleware,
+
+      this.meetingOpenActivity);
+
+    this.router.post(
+      `${this.path}/meetingCompleteActivity`,
+      authMiddleware,
+
+      this.meetingCompleteActivity);
+
+
   }
 
   public createMeeting = async (
@@ -75,9 +100,9 @@ class MeetingController {
     next: NextFunction
   ) => {
     try {
-        const {companyName}=request.body
+      const { companyName } = request.body
       const result = await MongoService.find(MONGO_DB_EXEM, this.Meeting, {
-        query: {companyName:companyName}
+        query: { companyName: companyName }
       });
 
       successMiddleware(
@@ -95,7 +120,7 @@ class MeetingController {
     }
   };
 
- 
+
 
   public updateMeeting = async (
     request: Request,
@@ -165,7 +190,7 @@ class MeetingController {
     }
   };
 
-//       ====================================================================================================================
+  //       ====================================================================================================================
 
 
   public addNoteToMeeting = async (
@@ -177,7 +202,7 @@ class MeetingController {
       const { id } = request.params;
       const { text } = request.body;
 
-      if (!text ) {
+      if (!text) {
         return response
           .status(400)
           .json({ message: 'Text and timestamp are required' });
@@ -234,7 +259,7 @@ class MeetingController {
       const meetingObjectId = new mongoose.Types.ObjectId(meetingId);
       const noteObjectId = new mongoose.Types.ObjectId(noteId);
 
-   
+
       // Perform the update operation
       const result = await MongoService.findOneAndUpdate(
         MONGO_DB_EXEM,
@@ -270,57 +295,269 @@ class MeetingController {
 
 
   public deleteNote = async (
-  request: Request,
-  response: Response,
-  next: NextFunction
-) => {
-  try {
-    // Extract callId and noteId from request
-    const { meetingId, noteId } = request.body;
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
+    try {
+      // Extract callId and noteId from request
+      const { meetingId, noteId } = request.body;
 
-    // Validate `callId` and `noteId`
-    if (!meetingId || !noteId) {
-      return response.status(400).json({ message: 'Call ID and note ID are required' });
-    }
-
-    // Convert `callId` and `noteId` to ObjectId
-    const meetingObjectId = new mongoose.Types.ObjectId(meetingId);
-    const noteObjectId = new mongoose.Types.ObjectId(noteId);
-
-    // Perform the update operation
-    const result = await MongoService.findOneAndUpdate(
-      MONGO_DB_EXEM,
-      this.Meeting,
-      {
-        query: { _id: meetingObjectId, 'notes._id': noteObjectId },
-        updateData: { $pull: { notes: { _id: noteObjectId } } },
-        updateOptions: { new: true }
+      // Validate `callId` and `noteId`
+      if (!meetingId || !noteId) {
+        return response.status(400).json({ message: 'Call ID and note ID are required' });
       }
-    );
 
-    // Handle case where no document was found
-    if (!result || result.matchedCount === 0) {
-      return response.status(404).json({ message: 'Contact info not found or note not found' });
+      // Convert `callId` and `noteId` to ObjectId
+      const meetingObjectId = new mongoose.Types.ObjectId(meetingId);
+      const noteObjectId = new mongoose.Types.ObjectId(noteId);
+
+      // Perform the update operation
+      const result = await MongoService.findOneAndUpdate(
+        MONGO_DB_EXEM,
+        this.Meeting,
+        {
+          query: { _id: meetingObjectId, 'notes._id': noteObjectId },
+          updateData: { $pull: { notes: { _id: noteObjectId } } },
+          updateOptions: { new: true }
+        }
+      );
+
+      // Handle case where no document was found
+      if (!result || result.matchedCount === 0) {
+        return response.status(404).json({ message: 'Contact info not found or note not found' });
+      }
+
+      // Successful response
+      successMiddleware(
+        {
+          message: 'Note deleted successfully',
+          data: result
+        },
+        request,
+        response,
+        next
+      );
+    } catch (error) {
+      // Log error and pass to the error handler middleware
+      logger.error(`Error deleting note: ${error}`);
+      next(error);
     }
 
-    // Successful response
-    successMiddleware(
-      {
-        message: 'Note deleted successfully',
-        data: result
-      },
-      request,
-      response,
-      next
-    );
-  } catch (error) {
-    // Log error and pass to the error handler middleware
-    logger.error(`Error deleting note: ${error}`);
-    next(error);
   }
 
-}
-  
+
+  //========================================== =================== 
+
+  public meetingCompleteActivity = async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const { companyName } = request.body;
+      const req = request as RequestWithAdmin;
+      const currentUserId = req.user._id;
+
+      // Fetch the role of the current user
+      const adminResults = await MongoService.find(MONGO_DB_EXEM, this.Admin, {
+        query: { _id: currentUserId },
+        select: 'role'
+      });
+
+
+
+      const adminResult = adminResults[0];
+
+
+      let queryCondition: any = { companyName: companyName, status: "complete" };
+
+      if (adminResult.role !== 'superAdmin') {
+        queryCondition.userAdminId = currentUserId;
+      }
+
+      const result = await MongoService.find(MONGO_DB_EXEM, this.Meeting, {
+        query: queryCondition,
+        // Fetch the tasks based on the determined query condition
+        select: 'subject dueDate taskOwner assign status'
+      });
+
+      successMiddleware(
+        {
+          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `Task`),
+          data: result
+        },
+        request,
+        response,
+        next
+
+      );
+    } catch (error) {
+      logger.error(`Error fetching tasks: ${error}`);
+      next(error);
+    }
+  };
+
+
+
+  public meetingOpenActivity = async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const { companyName } = request.body;
+      const req = request as RequestWithAdmin;
+      const currentUserId = req.user._id;
+
+      // Fetch the role of the current user
+      const adminResults = await MongoService.find(MONGO_DB_EXEM, this.Admin, {
+        query: { _id: currentUserId },
+        select: 'role'
+      });
+
+
+
+      const adminResult = adminResults[0];
+
+
+      let queryCondition: any = { companyName: companyName, status: { $ne: "complete" } };
+
+      if (adminResult.role !== 'superAdmin') {
+        queryCondition.userAdminId = currentUserId;
+      }
+
+      // Fetch the tasks based on the determined query condition
+      const result = await MongoService.find(MONGO_DB_EXEM, this.Meeting, {
+        query: queryCondition
+
+      });
+
+      successMiddleware(
+        {
+          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `Task`),
+          data: result
+        },
+        request,
+        response,
+        next
+      );
+
+    } catch (error) {
+      logger.error(`Error fetching tasks: ${error}`);
+      next(error);
+    }
+  };
+
+
+  public personName = async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
+    try {
+
+      const { companyName } = request.body;
+      const result = await MongoService.find(MONGO_DB_EXEM, this.ContaceInfo, {
+        query: { companyName: companyName }, select: 'personName'
+      });
+
+      successMiddleware(
+        {
+          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `personName`),
+          data: result
+        },
+        request,
+        response,
+        next
+      );
+    } catch (error) {
+      logger.error(`Error fetching tasks: ${error}`);
+      next(error);
+    }
+  };
+  public phone = async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
+    try {
+
+      const { companyName } = request.body;
+      const result = await MongoService.find(MONGO_DB_EXEM, this.ContaceInfo, {
+        query: { companyName: companyName }, select: 'phone'
+      });
+
+      successMiddleware(
+        {
+          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `phone`),
+          data: result
+        },
+        request,
+        response,
+        next
+      );
+    } catch (error) {
+      logger.error(`Error fetching tasks: ${error}`);
+      next(error);
+    }
+  };
+  public email = async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
+    try {
+
+      const { companyName } = request.body;
+      const result = await MongoService.find(MONGO_DB_EXEM, this.ContaceInfo, {
+        query: { companyName: companyName }, select: 'email'
+      });
+
+      successMiddleware(
+        {
+          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `phone`),
+          data: result
+        },
+        request,
+        response,
+        next
+      );
+    } catch (error) {
+      logger.error(`Error fetching tasks: ${error}`);
+      next(error);
+    }
+  };
+  public phoneEmail = async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
+    try {
+
+      const { companyName, personName } = request.body;
+      const result = await MongoService.find(MONGO_DB_EXEM, this.ContaceInfo, {
+        query: { companyName: companyName, personName: personName }, select: 'phone email'
+      });
+
+      successMiddleware(
+        {
+          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `phone`),
+          data: result
+        },
+        request,
+        response,
+        next
+      );
+    } catch (error) {
+      logger.error(`Error fetching tasks: ${error}`);
+      next(error);
+    }
+  };
+
+
+
+
 }
 
 export default MeetingController;
