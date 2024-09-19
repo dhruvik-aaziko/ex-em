@@ -33,6 +33,7 @@ class taskController {
 
     this.router.post(
       `${this.path}/createTask`,
+      authMiddleware,
       uploadHandler.fields([
 
         { name: "image", maxCount: 1 },
@@ -41,7 +42,6 @@ class taskController {
         { name: "document", maxCount: 1 }
 
       ]),
-      authMiddleware,
       this.createTask);
 
     this.router.post(
@@ -77,6 +77,7 @@ class taskController {
 
     this.router.post(
       `${this.path}/updatenote`,
+      authMiddleware,
       this.validation.updateNoteValidation,
       uploadHandler.fields([
         { name: "image", maxCount: 1 },
@@ -90,6 +91,7 @@ class taskController {
 
     this.router.delete(
       `${this.path}/deletenote`,
+      authMiddleware,
       this.validation.deleteNoteValidation(),
       this.deleteNote); // Delete a note
 
@@ -97,7 +99,7 @@ class taskController {
 
     this.router.post(
       `${this.path}/allUserDropdown`,
-
+      authMiddleware,
       this.allUserDropdown);
 
 
@@ -543,7 +545,7 @@ class taskController {
           updateData: {
             $push: {
               notes: {
-                text,
+                text:text,
                 photo: imagePictures,
                 video: videoData,
                 audio: audioData,

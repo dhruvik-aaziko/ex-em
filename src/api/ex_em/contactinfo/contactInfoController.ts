@@ -89,14 +89,18 @@ class ContaceInfoController implements Controller {
             console.log(sheetData)
 
             const documents = sheetData.map((row: any) => ({
-                companyName: row['companyName'] || null,
-                personName: row['personName'] || null,
-                Phone: row['Phone']
-                    ? parseInt(String(row['Phone']).replace(/[^0-9]/g, ''), 10)
-                    : null,
-                Email: row['Email'] || null,
-                Position: row['Position'] || null
+                companyName: row['Company'] || null,
+                personName: row['Person Name'] || null,
+                phone: row['Phone'] || null, // Store as String
+                email: row['Email'] || null,
+                position: row['Position'] || null,
+                notes: row['Note'] || null, // Assuming 'Note' corresponds to 'notes'
+                hsCode: row['HS'] ? Number(row['HS']) : null, // Convert to Number
+                country: row['Country '] || null
             }));
+            
+            
+            
 
 
 

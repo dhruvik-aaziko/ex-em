@@ -17,23 +17,25 @@ import getconfig from '../../../config';
 import { successMiddleware } from '../../../middleware/response.middleware';
 import logger from '../../../logger';
 import { MongoService } from '../../../utils/mongoService';
-import CallModel from './call.model';
-import { ObjectId } from 'mongodb';
+import FollowUpModel from './followUp.model';
 import mongoose from 'mongoose';
 import { RequestWithAdmin } from '../../../interfaces/requestWithAdmin.interface';
 import authMiddleware from '../../../middleware/auth.middleware';
 import { validateFile } from '../../../utils/validationFunctions';
 import { audioFileUploadHandle, fileUploadHandle, pdfFileUploadHandle, videoFileUploadHandle } from '../../../utils/fileUploadHandle';
 import adminModel from '../../admin/admin.model';
-import { authorize } from 'passport';
+import followUpModel from './followUp.model';
+import callModel from '../call/call.model';
 
 const { MONGO_DB_EXEM } = getconfig();
 
-class CallController {
-  public path = `/${ROUTES.CALL}`;
+class FollowUpController {
+  public path = `/${ROUTES.FollowUp}`;
   public router = Router();
-  public Call = CallModel;
-  public Admin = adminModel
+  public FollowUp = followUpModel;
+  public Admin = adminModel;
+  public Call = callModel;
+
 
   constructor() {
     this.initializeRoutes();
@@ -41,24 +43,23 @@ class CallController {
 
   private initializeRoutes() {
 
-    this.router.post(`${this.path}/createCall`,
+    this.router.post(`${this.path}/createFollowUp`,
       authMiddleware,
       uploadHandler.fields([
         { name: "audio", maxCount: 1 },
-
       ]),
-      this.createCall);
+      this.createFollowUp);
 
 
-    this.router.post(`${this.path}/getAllCalls`, authMiddleware, this.getAllCalls);
+    this.router.post(`${this.path}/getAllFollowUps`, authMiddleware, this.getAllFollowUps);
 
-    this.router.put(`${this.path}/updateCall/:id`,
+    this.router.put(`${this.path}/updateFollowUp/:id`,
       uploadHandler.fields([
         { name: "audio", maxCount: 1 },
       ]),
-      authMiddleware, this.updateCall);
+      authMiddleware, this.updateFollowUp);
 
-    this.router.delete(`${this.path}/deleteCall/:id`, authMiddleware, this.deleteCall);
+    this.router.delete(`${this.path}/deleteFollowUp/:id`, authMiddleware, this.deleteFollowUp);
 
     //=========================================  Notes  ======================================================
 
@@ -73,7 +74,7 @@ class CallController {
         { name: "document", maxCount: 1 }
 
       ]),
-      this.addNoteToCall); // Add a new note
+      this.addNoteToFollowUp); // Add a new note
 
     this.router.post(
       `${this.path}/updatenote`,
@@ -84,30 +85,30 @@ class CallController {
         { name: "audio", maxCount: 1 },
         { name: "document", maxCount: 1 }
       ]),
-      this.updateNoteInCall
+      this.updateNoteInFollowUp
     );
 
 
     this.router.delete(
       `${this.path}/deletenote`,
       authMiddleware,
-      this.deleteNoteFromCall); // Delete a note
+      this.deleteNoteFromFollowUp); // Delete a note
 
     //===============================================================================================
 
     this.router.post(
-      `${this.path}/callOpenActivity`,
+      `${this.path}/FollowUpOpenActivity`,
       authMiddleware,
-      this.callOpenActivity);
+      this.FollowUpOpenActivity);
 
     this.router.post(
-      `${this.path}/callCompleteActivity`,
+      `${this.path}/FollowUpCompleteActivity`,
       authMiddleware,
-      this.callCompleteActivity);
+      this.FollowUpCompleteActivity);
 
   }
 
-  public createCall = async (
+  public createFollowUp = async (
     request: Request,
     response: Response,
     next: NextFunction
@@ -116,49 +117,26 @@ class CallController {
       const req = request as RequestWithAdmin;
       const currentUserId = req.user._id;
 
-      const files: any = request?.files;
-      const fileAudiocalls = [{ type: 'audio', fileArray: ['audio'] }];
-      for (let j = 0; j < files?.audio?.length; j++) {
-        const file = files?.audio[j];
-        await validateFile(/*res,*/  file, 'audio', COMMON_CONSTANT.AUDIO_EXT_ARRAY, /*maxSizeCompany*/);
-      }
 
-      const { audioData } = await audioFileUploadHandle(files, fileAudiocalls, false);
       const {
-        name,
-        agent,
-        phoneNo,
-        company,
-        position,
-        callType,
-        callStatus,
-        scheduledAt,
-        callDuration,
-        subject,
-        voiceRecording,
-        callPurpose,
-        callResult,
-        description,
-        text
+        name, companyName, position, callType, outgoingStatus, dateTime, agent, subject, callResult, callPurpose, text, assigne
+
       } = request.body;
       console.log("---------------request.body------------------", request.body)
-      const result = await MongoService.create(MONGO_DB_EXEM, this.Call, {
+      const result = await MongoService.create(MONGO_DB_EXEM, this.FollowUp, {
         insert: {
           name: name,
           userAdminId: currentUserId,
-          agent: agent,
-          phoneNo: phoneNo,
-          company: company,
+          assigne:assigne,
+          companyName: companyName,
           position: position,
           callType: callType,
-          callStatus: callStatus,
-          scheduledAt: scheduledAt,
-          callDuration: callDuration,
+          outgoingStatus: outgoingStatus,
+          dateTime: dateTime,
+          agent: agent,
           subject: subject,
-          voiceRecording: audioData,
-          callPurpose: callPurpose,
           callResult: callResult,
-          description: description,
+          callPurpose: callPurpose,
           notes: {
             text: text,
           }
@@ -167,7 +145,7 @@ class CallController {
 
       successMiddleware(
         {
-          message: 'Call created successfully',
+          message: 'FollowUp created successfully',
           data: result
         },
         request,
@@ -175,25 +153,25 @@ class CallController {
         next
       );
     } catch (error) {
-      logger.error(`Error creating Call: ${error}`);
+      logger.error(`Error creating FollowUp: ${error}`);
       next(error);
     }
   };
 
-  public getAllCalls = async (
+  public getAllFollowUps = async (
     request: Request,
     response: Response,
     next: NextFunction
   ) => {
     try {
       const { companyName } = request.body
-      const result = await MongoService.find(MONGO_DB_EXEM, this.Call, {
-        query: { company: companyName }
+      const result = await MongoService.find(MONGO_DB_EXEM, this.FollowUp, {
+        query: { companyName:companyName }
       });
 
       successMiddleware(
         {
-          message: 'Calls fetched successfully',
+          message: 'FollowUps fetched successfully',
           data: result
         },
         request,
@@ -201,12 +179,12 @@ class CallController {
         next
       );
     } catch (error) {
-      logger.error(`Error fetching Calls: ${error}`);
+      logger.error(`Error fetching FollowUps: ${error}`);
       next(error);
     }
   };
 
-  public updateCall = async (
+  public updateFollowUp = async (
     request: Request,
     response: Response,
     next: NextFunction
@@ -214,51 +192,27 @@ class CallController {
     try {
       const { id } = request.params;
       const {
-        name,
-        agent,
-        phoneNo,
-        company,
-        position,
-        callType,
-        callStatus,
-        scheduledAt,
-        callDuration,
-        subject,
-        callPurpose,
-        callResult,
-        description,
+        name, companyName, position, callType, outgoingStatus, dateTime, agent, subject, callResult, callPurpose,assigne
       } = request.body;
-      const files: any = request?.files;
-
-      const fileAudioTasks = [{ type: 'audio', fileArray: ['audio'] }];
-      const { audioData } = await audioFileUploadHandle(files, fileAudioTasks, false);
-
-
-      for (const file of files?.audio || []) {
-        await validateFile(file, 'audio', COMMON_CONSTANT.AUDIO_EXT_ARRAY);
-      }
 
       const result = await MongoService.findOneAndUpdate(
         MONGO_DB_EXEM,
-        this.Call,
+        this.FollowUp,
         {
           query: { _id: id },
           updateData: {
             $set: {
               name: name,
-              agent: agent,
-              phoneNo: phoneNo,
-              company: company,
+              companyName: companyName,
+              assigne:assigne,
               position: position,
               callType: callType,
-              callStatus: callStatus,
-              scheduledAt: scheduledAt,
-              callDuration: callDuration,
+              outgoingStatus: outgoingStatus,
+              dateTime: dateTime,
+              agent: agent,
               subject: subject,
-              voiceRecording: audioData,
-              callPurpose: callPurpose,
               callResult: callResult,
-              description: description,
+              callPurpose: callPurpose
             }
           },
           updateOptions: { new: true }
@@ -266,12 +220,12 @@ class CallController {
       );
 
       if (!result) {
-        return response.status(404).json({ message: 'Call not found' });
+        return response.status(404).json({ message: 'FollowUp not found' });
       }
 
       successMiddleware(
         {
-          message: 'Call updated successfully',
+          message: 'FollowUp updated successfully',
           data: result
         },
         request,
@@ -279,29 +233,29 @@ class CallController {
         next
       );
     } catch (error) {
-      logger.error(`Error updating Call: ${error}`);
+      logger.error(`Error updating FollowUp: ${error}`);
       next(error);
     }
   };
 
-  public deleteCall = async (
+  public deleteFollowUp = async (
     request: Request,
     response: Response,
     next: NextFunction
   ) => {
     try {
       const { id } = request.params;
-      const result = await MongoService.deleteOne(MONGO_DB_EXEM, this.Call, {
+      const result = await MongoService.deleteOne(MONGO_DB_EXEM, this.FollowUp, {
         query: { _id: id }
       });
 
       if (!result.deletedCount) {
-        return response.status(404).json({ message: 'Call not found' });
+        return response.status(404).json({ message: 'FollowUp not found' });
       }
 
       successMiddleware(
         {
-          message: 'Call deleted successfully',
+          message: 'FollowUp deleted successfully',
           data: result
         },
         request,
@@ -309,7 +263,7 @@ class CallController {
         next
       );
     } catch (error) {
-      logger.error(`Error deleting Call: ${error}`);
+      logger.error(`Error deleting FollowUp: ${error}`);
       next(error);
     }
   };
@@ -317,7 +271,7 @@ class CallController {
   //=====================================================================================================================+++++++++++++--------**********+-*/-+*/-----------------
 
 
-  public addNoteToCall = async (
+  public addNoteToFollowUp = async (
     request: Request,
     response: Response,
     next: NextFunction
@@ -329,21 +283,21 @@ class CallController {
       const req = request as RequestWithAdmin;
       const currentUserId = req.user._id;
 
-      let call = await MongoService.findOne(MONGO_DB_EXEM, this.Call, {
+      let FollowUp = await MongoService.findOne(MONGO_DB_EXEM, this.FollowUp, {
         query: {
           _id: request.params.id,
           userAdminId: currentUserId
         }
       })
-      if (!call) {
+      if (!FollowUp) {
         response.statusCode = STATUS_CODE.BAD_REQUEST;
-        throw new Error(ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'call'));
+        throw new Error(ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'FollowUp'));
       }
 
-      const fileImagecalls = [{ type: 'image', fileArray: ['image'] }];
-      const fileVideocalls = [{ type: 'video', fileArray: ['video'] }];
-      const fileAudiocalls = [{ type: 'audio', fileArray: ['audio'] }];
-      const fileDocumentcalls = [{ type: 'document', fileArray: ['document'] }];
+      const fileImageFollowUps = [{ type: 'image', fileArray: ['image'] }];
+      const fileVideoFollowUps = [{ type: 'video', fileArray: ['video'] }];
+      const fileAudioFollowUps = [{ type: 'audio', fileArray: ['audio'] }];
+      const fileDocumentFollowUps = [{ type: 'document', fileArray: ['document'] }];
 
       for (let j = 0; j < files?.image?.length; j++) {
         const file = files?.image[j];
@@ -363,10 +317,10 @@ class CallController {
         await validateFile(/*res,*/  file, 'document', COMMON_CONSTANT.DOCUMENT_EXT_ARRAY, /*maxSizeCompany*/);
       }
 
-      const { imagePictures } = await fileUploadHandle(files, fileImagecalls, false);
-      const { videoData } = await videoFileUploadHandle(files, fileVideocalls, false);
-      const { audioData } = await audioFileUploadHandle(files, fileAudiocalls, false);
-      const { documentData } = await pdfFileUploadHandle(files, fileDocumentcalls, false);
+      const { imagePictures } = await fileUploadHandle(files, fileImageFollowUps, false);
+      const { videoData } = await videoFileUploadHandle(files, fileVideoFollowUps, false);
+      const { audioData } = await audioFileUploadHandle(files, fileAudioFollowUps, false);
+      const { documentData } = await pdfFileUploadHandle(files, fileDocumentFollowUps, false);
 
       logger.info("============imagePictures", imagePictures)
       logger.info("============videoData", videoData)
@@ -375,7 +329,7 @@ class CallController {
 
       const result = await MongoService.findOneAndUpdate(
         MONGO_DB_EXEM,
-        this.Call,
+        this.FollowUp,
         {
           query: { _id: request.params.id },
           updateData: {
@@ -413,33 +367,33 @@ class CallController {
   };
 
 
-  public updateNoteInCall = async (
+  public updateNoteInFollowUp = async (
     request: Request,
     response: Response,
     next: NextFunction
   ) => {
     try {
-      const { text, callId, noteId } = request.body;
+      const { text, FollowUpId, noteId } = request.body;
       const files: any = request?.files;
 
 
       // Convert IDs to ObjectId  
-      const callObjectId = new mongoose.Types.ObjectId(callId);
+      const FollowUpObjectId = new mongoose.Types.ObjectId(FollowUpId);
       const noteObjectId = new mongoose.Types.ObjectId(noteId);
 
-      // Validate the existence of the call
-      let call = await MongoService.findOne(MONGO_DB_EXEM, this.Call, {
-        query: { _id: callObjectId }
+      // Validate the existence of the FollowUp
+      let FollowUp = await MongoService.findOne(MONGO_DB_EXEM, this.FollowUp, {
+        query: { _id: FollowUpObjectId }
       });
-      if (!call) {
-        return response.status(404).json({ message: ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'call') });
+      if (!FollowUp) {
+        return response.status(404).json({ message: ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'FollowUp') });
       }
 
       // Validate and handle files
-      const fileImagecalls = [{ type: 'image', fileArray: ['image'] }];
-      const fileVideocalls = [{ type: 'video', fileArray: ['video'] }];
-      const fileAudiocalls = [{ type: 'audio', fileArray: ['audio'] }];
-      const fileDocumentcalls = [{ type: 'document', fileArray: ['document'] }];
+      const fileImageFollowUps = [{ type: 'image', fileArray: ['image'] }];
+      const fileVideoFollowUps = [{ type: 'video', fileArray: ['video'] }];
+      const fileAudioFollowUps = [{ type: 'audio', fileArray: ['audio'] }];
+      const fileDocumentFollowUps = [{ type: 'document', fileArray: ['document'] }];
 
       for (const file of files?.image || []) {
         await validateFile(file, 'image', COMMON_CONSTANT.IMAGE_EXT_ARRAY);
@@ -455,10 +409,10 @@ class CallController {
       }
 
       // Handle file uploads
-      const { imagePictures } = await fileUploadHandle(files, fileImagecalls, false);
-      const { videoData } = await videoFileUploadHandle(files, fileVideocalls, false);
-      const { audioData } = await audioFileUploadHandle(files, fileAudiocalls, false);
-      const { documentData } = await pdfFileUploadHandle(files, fileDocumentcalls, false);
+      const { imagePictures } = await fileUploadHandle(files, fileImageFollowUps, false);
+      const { videoData } = await videoFileUploadHandle(files, fileVideoFollowUps, false);
+      const { audioData } = await audioFileUploadHandle(files, fileAudioFollowUps, false);
+      const { documentData } = await pdfFileUploadHandle(files, fileDocumentFollowUps, false);
 
       logger.info("============imagePictures", imagePictures);
       logger.info("============videoData", videoData);
@@ -468,10 +422,10 @@ class CallController {
       // Update the specific note in the notes array
       const result = await MongoService.findOneAndUpdate(
         MONGO_DB_EXEM,
-        this.Call,
+        this.FollowUp,
         {
           query: {
-            _id: callObjectId,
+            _id: FollowUpObjectId,
             'notes._id': noteObjectId
           },
           updateData: {
@@ -488,7 +442,7 @@ class CallController {
       );
 
       if (!result) {
-        return response.status(404).json({ message: 'call or note not found' });
+        return response.status(404).json({ message: 'FollowUp or note not found' });
       }
 
       successMiddleware(
@@ -507,27 +461,27 @@ class CallController {
   };
 
 
-  public deleteNoteFromCall = async (
+  public deleteNoteFromFollowUp = async (
     request: Request,
     response: Response,
     next: NextFunction
   ) => {
     try {
-      // Extract callId and noteId from request
-      const { callId, noteId } = request.body;
+      // Extract FollowUpId and noteId from request
+      const { FollowUpId, noteId } = request.body;
 
 
 
-      // Convert `callId` and `noteId` to ObjectId
-      const callObjectId = new mongoose.Types.ObjectId(callId);
+      // Convert `FollowUpId` and `noteId` to ObjectId
+      const FollowUpObjectId = new mongoose.Types.ObjectId(FollowUpId);
       const noteObjectId = new mongoose.Types.ObjectId(noteId);
 
       // Perform the update operation
       const result = await MongoService.findOneAndUpdate(
         MONGO_DB_EXEM,
-        this.Call,
+        this.FollowUp,
         {
-          query: { _id: callObjectId, 'notes._id': noteObjectId },
+          query: { _id: FollowUpObjectId, 'notes._id': noteObjectId },
           updateData: { $pull: { notes: { _id: noteObjectId } } },
           updateOptions: { new: true }
         }
@@ -535,7 +489,7 @@ class CallController {
 
       // Handle case where no document was found
       if (!result || result.matchedCount === 0) {
-        return response.status(404).json({ message: 'call not found or note not found' });
+        return response.status(404).json({ message: 'FollowUp not found or note not found' });
       }
 
       // Successful response
@@ -556,162 +510,11 @@ class CallController {
 
   }
 
-  // public addNoteToCall = async (
-  //   request: Request,
-  //   response: Response,
-  //   next: NextFunction
-  // ) => {
-  //   try {
-  //     const { id } = request.params;
-  //     const { text } = request.body;
 
-  //     if (!text) {
-  //       return response
-  //         .status(400)
-  //         .json({ message: 'Text and timestamp are required' });
-  //     }
-
-  //     const result = await MongoService.findOneAndUpdate(
-  //       MONGO_DB_EXEM,
-  //       this.Call,
-  //       {
-  //         query: { _id: id },
-  //         updateData: {
-  //           $push: { notes: { text } }
-  //         },
-  //         updateOptions: { new: true }
-  //       }
-  //     );
-
-  //     if (!result) {
-  //       return response.status(404).json({ message: 'Call not found' });
-  //     }
-
-  //     successMiddleware(
-  //       {
-  //         message: 'Note added successfully',
-  //         data: result
-  //       },
-  //       request,
-  //       response,
-  //       next
-  //     );
-  //   } catch (error) {
-  //     logger.error(`Error adding note: ${error}`);
-  //     next(error);
-  //   }
-  // };
-
-  // public updateNoteInCall = async (
-  //   request: Request,
-  //   response: Response,
-  //   next: NextFunction
-  // ) => {
-  //   try {
-  //     // Extract the data from the request body
-  //     const { newText, callId, noteId } = request.body;
-
-  //     // Check if all required fields are present
-  //     if (!newText || !callId || !noteId) {
-  //       return response
-  //         .status(400)
-  //         .json({ message: 'New text, call ID, and note ID are required' });
-  //     }
-
-  //     // Convert callId and noteId to ObjectId
-  //     const callObjectId = new mongoose.Types.ObjectId(callId);
-  //     const noteObjectId = new mongoose.Types.ObjectId(noteId);
-
-  //     console.log(callObjectId, noteObjectId)
-  //     // Perform the update operation
-  //     const result = await MongoService.findOneAndUpdate(
-  //       MONGO_DB_EXEM,
-  //       this.Call,
-  //       {
-  //         query: { _id: callObjectId, 'notes._id': noteObjectId },
-  //         updateData: { $set: { 'notes.$.text': newText } },
-  //         updateOptions: { new: true }
-  //       }
-  //     );
-
-  //     // Check if the result is valid
-  //     if (!result) {
-  //       return response.status(404).json({ message: 'Call or note not found' });
-  //     }
-
-  //     // Send success response
-  //     successMiddleware(
-  //       {
-  //         message: 'Note updated successfully',
-  //         data: result
-  //       },
-  //       request,
-  //       response,
-  //       next
-  //     );
-  //   } catch (error) {
-  //     // Log error and pass to the error handler middleware
-  //     logger.error(`Error updating note: ${error}`);
-  //     next(error);
-  //   }
-  // };
-
-
-  // public deleteNoteFromCall = async (
-  //   request: Request,
-  //   response: Response,
-  //   next: NextFunction
-  // ) => {
-  //   try {
-  //     // Extract callId and noteId from request
-  //     const { callId, noteId } = request.body;
-
-  //     // Validate `callId` and `noteId`
-  //     if (!callId || !noteId) {
-  //       return response.status(400).json({ message: 'Call ID and note ID are required' });
-  //     }
-
-  //     // Convert `callId` and `noteId` to ObjectId
-  //     const callObjectId = new mongoose.Types.ObjectId(callId);
-  //     const noteObjectId = new mongoose.Types.ObjectId(noteId);
-
-  //     // Perform the update operation
-  //     const result = await MongoService.findOneAndUpdate(
-  //       MONGO_DB_EXEM,
-  //       this.Call,
-  //       {
-  //         query: { _id: callObjectId, 'notes._id': noteObjectId },
-  //         updateData: { $pull: { notes: { _id: noteObjectId } } },
-  //         updateOptions: { new: true }
-  //       }
-  //     );
-
-  //     // Handle case where no document was found
-  //     if (!result || result.matchedCount === 0) {
-  //       return response.status(404).json({ message: 'Call not found or note not found' });
-  //     }
-
-  //     // Successful response
-  //     successMiddleware(
-  //       {
-  //         message: 'Note deleted successfully',
-  //         data: result
-  //       },
-  //       request,
-  //       response,
-  //       next
-  //     );
-  //   } catch (error) {
-  //     // Log error and pass to the error handler middleware
-  //     logger.error(`Error deleting note: ${error}`);
-  //     next(error);
-  //   }
-
-  // }
 
   //=============================
 
-  public callCompleteActivity = async (
+  public FollowUpCompleteActivity = async (
     request: Request,
     response: Response,
     next: NextFunction
@@ -732,21 +535,21 @@ class CallController {
       const adminResult = adminResults[0];
 
 
-      let queryCondition: any = { company: companyName, callStatus: "complete" };
+      let queryCondition: any = { company: companyName, FollowUpStatus: "complete" };
 
       if (adminResult.role !== 'superAdmin') {
         queryCondition.userAdminId = currentUserId;
       }
 
-      const result = await MongoService.find(MONGO_DB_EXEM, this.Call, {
+      const result = await MongoService.find(MONGO_DB_EXEM, this.FollowUp, {
         query: queryCondition,
-        // Fetch the calls based on the determined query condition
-        // select: 'subject dueDate callOwner assign status'
+        // Fetch the FollowUps based on the determined query condition
+        // select: 'subject dueDate FollowUpOwner assign status'
       });
 
       successMiddleware(
         {
-          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `call`),
+          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `FollowUp`),
           data: result
         },
         request,
@@ -755,7 +558,7 @@ class CallController {
 
       );
     } catch (error) {
-      logger.error(`Error fetching calls: ${error}`);
+      logger.error(`Error fetching FollowUps: ${error}`);
       next(error);
     }
   };
@@ -764,7 +567,7 @@ class CallController {
 
 
 
-  public callOpenActivity = async (
+  public FollowUpOpenActivity = async (
     request: Request,
     response: Response,
     next: NextFunction
@@ -785,21 +588,27 @@ class CallController {
       const adminResult = adminResults[0];
 
 
-      let queryCondition: any = { company: companyName, callStatus: { $ne: "complete" } };
+      let queryCondition: any = { companyName: companyName, FollowUpStatus: { $ne: "complete" } };
 
       if (adminResult.role !== 'superAdmin') {
         queryCondition.userAdminId = currentUserId;
       }
 
-      // Fetch the calls based on the determined query condition
+      // Fetch the FollowUps based on the determined query condition
       const result = await MongoService.find(MONGO_DB_EXEM, this.Call, {
-        query: queryCondition
+        query: {
+          company: companyName,
+          userAdminId: currentUserId,
+        //  createdAt: { $ne: new Date() },
+          callResult: { $ne: "dead_lead" }
+        }
+
 
       });
 
       successMiddleware(
         {
-          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `call`),
+          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `FollowUp`),
           data: result
         },
         request,
@@ -808,10 +617,10 @@ class CallController {
       );
 
     } catch (error) {
-      logger.error(`Error fetching calls: ${error}`);
+      logger.error(`Error fetching FollowUps: ${error}`);
       next(error);
     }
   };
 }
 
-export default CallController;
+export default FollowUpController;

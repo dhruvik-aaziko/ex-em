@@ -6,8 +6,10 @@ import { meeting } from './meeting.interface';
 
 
 const meetingSchema: Schema = new mongoose.Schema({
+    userAdminId: { type: mongoose.Schema.Types.ObjectId, ref: 'admin' },
+
     title: { type: String },
-    companyName: { type: String},
+    companyName: { type: String },
     countryName: { type: String },
     industry: { type: String },
     personName: { type: String },
@@ -17,10 +19,10 @@ const meetingSchema: Schema = new mongoose.Schema({
     dateTime: { type: Date },
     host: { type: String },
     location: { type: String },
-    participants: { type: String},
+    participants: { type: String },
     status: { type: String },
     notes: [{
-      
+
         text: { type: String, },
         video: [{ type: String, default: [] }],
         photo: [{ type: String, default: [] }],

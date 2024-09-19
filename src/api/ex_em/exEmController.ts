@@ -85,37 +85,37 @@ class exEmController implements Controller {
     ) => {
         try {
             const files: any = request.files;
-    
+
             if (!files || !files.file || files.file.length === 0) {
                 return response.status(400).json({
                     message: 'No file uploaded. Please upload an Excel file.',
                 });
             }
-    
+
             const allowedMimeTypes = [
                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 'application/vnd.ms-excel'
             ];
             const file = files.file[0];
-    
+
             if (!allowedMimeTypes.includes(file.mimetype)) {
                 return response.status(415).json({
                     message: 'Invalid file type. Please upload an Excel file.',
                 });
             }
-    
+
             const filePath = file.path;
             const workbook = XLSX.readFile(filePath);
             const sheetName = workbook.SheetNames[0];
             const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
             //console.log(`Uploaded file name: ${file.originalname}`);
-    
+
             if (!Array.isArray(sheetData) || sheetData.length === 0) {
                 return response.status(400).json({
                     message: 'The Excel file is empty or invalid.',
                 });
             }
-    
+
             // Prepare documents for bulk insert
             const documents = sheetData.map((row: any) => ({
                 insertOne: {
@@ -138,24 +138,24 @@ class exEmController implements Controller {
                         portCode: row['port code'] || null,
                         unit: row.unit || null,
                         emptyField: row['__EMPTY'] || '-',
-                        sheetName:file.originalname
-                      
-                        
+                        sheetName: file.originalname
+
+
                     }
                 }
             }));
-    
+
             const batchSize = 1000; // Experiment with optimal size
             const maxConcurrentBatches = 5; // Limit concurrency to avoid overwhelming MongoDB
-    
+
             const insertBatches = async (batchStart: number) => {
                 const batch = documents.slice(batchStart, batchStart + batchSize);
-    
+
                 await MongoService.bulkWrite(MONGO_DB_EXEM, this.exEm, batch);
             };
-    
+
             const batchPromises = [];
-    
+
             for (let i = 0; i < documents.length; i += batchSize) {
                 if (batchPromises.length >= maxConcurrentBatches) {
                     await Promise.all(batchPromises); // Wait for the current batch to finish before starting more
@@ -163,7 +163,7 @@ class exEmController implements Controller {
                 }
                 batchPromises.push(insertBatches(i));
             }
-    
+
             // Ensure any remaining batches are also completed
             if (batchPromises.length > 0) {
                 await Promise.all(batchPromises);
@@ -173,14 +173,14 @@ class exEmController implements Controller {
                 message: 'Sheet data has been successfully uploaded and inserted.',
                 data: documents.length
             });
-    
+
         } catch (error) {
             console.error('Error in uploading Excel data:', error);
             next(error);
         }
     };
-    
-    
+
+
     // private uploadExcelData = async (
     //     request: Request,
     //     response: Response,
@@ -188,38 +188,38 @@ class exEmController implements Controller {
     // ) => {
     //     try {
     //         const files: any = request.files; // Ensure files are correctly populated from your request
-    
+
     //         if (!files?.file?.length) {
     //             return response.status(400).json({
     //                 message: 'No file uploaded. Please upload an Excel file.',
     //             });
     //         }
-    
+
     //         const allowedMimeTypes = [
     //             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     //             'application/vnd.ms-excel'
     //         ];
     //         const file = files.file[0];
-    
+
     //         if (!allowedMimeTypes.includes(file.mimetype)) {
     //             return response.status(415).json({
     //                 message: 'Invalid file type. Please upload an Excel file.',
     //             });
     //         }
-    
+
     //         const workbook = XLSX.readFile(file.path);
     //         const sheetName = workbook.SheetNames[0];
     //         const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
-    
+
     //         console.log(`Uploaded file name: ${file.originalname}`);
-    
+
     //         if (!Array.isArray(sheetData) || !sheetData.length) {
     //             return response.status(400).json({
     //                 message: 'The Excel file is empty or invalid.',
     //             });
     //         }
     //         logger.info("================>>>", sheetName);
-    
+
     //         const documents = sheetData.map((row: any) => ({
     //             date: typeof row.date === 'string' ? new Date(row.date.split('/').reverse().join('-')) : null,
     //             shipmentId: row['shipment id '] ? parseInt(row['shipment id '], 10) : null,
@@ -241,28 +241,28 @@ class exEmController implements Controller {
     //             emptyField: row['__EMPTY'] || '-',
     //             sheetName:file.originalname
     //         }));
-    
+
     //         // Batch size for insertion
     //         const batchSize = 100; // Adjust as needed
     //         for (let i = 0; i < documents.length; i += batchSize) {
     //             const batch = documents.slice(i, i + batchSize);
     //             await MongoService.insertMany(MONGO_DB_EXEM, this.exEm2, { insert: batch });
     //         }
-    
+
     //         // Pass fileInfo wrapped in an array to match expected input for `model.create`
     //         await MongoService.create(MONGO_DB_EXEM, this.sheet, { insert: { sheetName: file.originalname } });
-    
+
     //         return response.status(200).json({
     //             message: 'Sheet data has been successfully uploaded and inserted.',
     //             data: documents.length
     //         });
-    
+
     //     } catch (error) {
     //         console.error('Error in uploading Excel data:', error);
     //         next(error);
     //     }
     // }
-    
+
 
 
 
@@ -1071,11 +1071,11 @@ class exEmController implements Controller {
         try {
             // Extract query parameters from request body
             const { companyName } = request.body;
-    
+
             if (!companyName) {
                 return response.status(400).send("Please provide companyName");
             }
-    
+
             // MongoDB aggregation pipeline
             const pipeline = [
                 {
@@ -1101,13 +1101,13 @@ class exEmController implements Controller {
                     }
                 }
             ];
-    
+
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, pipeline);
-    
+
             if (data.length === 0) {
                 return response.status(404).send("No data found for the provided companyName");
             }
-    
+
             successMiddleware(
                 {
                     message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'productInfo'),
@@ -1122,7 +1122,7 @@ class exEmController implements Controller {
             next(error);
         }
     };
-    
+
 
     private sellerInfo = async (
         request: Request,
@@ -1132,11 +1132,11 @@ class exEmController implements Controller {
         try {
             // Extract query parameters from request body
             const { companyName } = request.body;
-    
+
             if (!companyName) {
                 return response.status(400).send("Please provide companyName");
             }
-    
+
             // MongoDB aggregation pipeline
             const pipeline = [
                 {
@@ -1170,13 +1170,13 @@ class exEmController implements Controller {
                     }
                 }
             ];
-    
+
             const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, pipeline);
-    
+
             if (data.length === 0) {
                 return response.status(404).send("No data found for the provided companyName");
             }
-    
+
             successMiddleware(
                 {
                     message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'productInfo'),
@@ -1191,7 +1191,7 @@ class exEmController implements Controller {
             next(error);
         }
     };
-    
+
 
     private createContactNotes = async (
         request: Request,
@@ -1294,7 +1294,7 @@ class exEmController implements Controller {
                                 hsCode_1: "$hsCode_1",
                                 industry: "$industry",
                                 buyer: "$buyer",
-                               
+
                             }
                         }
                     },
@@ -1303,10 +1303,15 @@ class exEmController implements Controller {
                             _id: 0,
                             bCountry: "$_id.bCountry",
                             hsCode_1: "$_id.hsCode_1",
-                           
+
                             industry: "$_id.industry",
                             buyer: "$_id.buyer",
-                           
+
+                        }
+                    },
+                    {
+                        $sort: {
+                            buyer: 1 
                         }
                     }
                 ],
@@ -1342,96 +1347,7 @@ class exEmController implements Controller {
 
 
 
-    // private getUniqueBuyers = async (
-    //     request: Request,
-    //     response: Response,
-    //     next: NextFunction
-    // ) => {
-    //     try {
-    //         const { hsCode, startDate, endDate, country, product } = request.body;
-
-
-
-    //         const query: any = {};
-
-
-
-    //         if (country) {
-    //             query.bCountry = country;
-    //         }
-
-    //         if (hsCode) {
-    //             query.hsCode_1 = hsCode;
-    //         }
-
-    //         if (startDate && endDate) {
-    //             query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
-    //         }
-
-
-    //         if (product) {
-    //             query.product = product
-    //         }
-
-    //         console.log(query);
-
-
-    //         const data = await MongoService.find(MONGO_DB_EXEM, this.exEm, {
-    //             query,
-    //             select: 'date bCountry hsCode_1 industry buyer'
-    //         });
-    //         // Perform the aggregation to get unique buyers with product details
-    //         // const data = await MongoService.aggregate(MONGO_DB_EXEM, this.exEm, [
-    //         //     { $match: query },
-    //         //     {
-    //         //         $group: {
-    //         //             _id: {
-    //         //                 buyer: "$buyer",
-    //         //                 product: "$product",
-    //         //                 pricePerUnit: "$pricePerUnit"
-    //         //             },
-    //         //             totalQty: { $sum: "$qty" }
-
-    //         //         }
-    //         //     },
-    //         //     {
-    //         //         $group: {
-    //         //             _id: "$_id.buyer",
-    //         //             products: {
-    //         //                 $push: {
-    //         //                     product: "$_id.product",
-    //         //                     qty: "$totalQty",
-    //         //                     pricePerUnit: "$_id.pricePerUnit",
-
-    //         //                 }
-    //         //             }
-    //         //         }
-    //         //     },
-    //         //     {
-    //         //         $project: {
-    //         //             _id: 0,
-    //         //             buyer: "$_id",
-    //         //             details: "$products"
-    //         //         }
-    //         //     }
-    //         // ]);
-
-    //         // Respond with the unique buyers and their details
-    //         successMiddleware(
-    //             {
-    //                 message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'unique buyers with product details'),
-    //                 data: data // The projection is applied directly in the aggregation pipeline
-    //             },
-    //             request,
-    //             response,
-    //             next
-    //         );
-
-    //     } catch (error) {
-    //         logger.error(`There was an issue fetching unique buyers: ${error}`);
-    //         next(error);
-    //     }
-    // };
+    
 
 
 
@@ -1501,9 +1417,15 @@ class exEmController implements Controller {
                             _id: 0,            // Exclude the _id field
                             hscode: "$_id"     // Rename _id to hscode
                         }
+                    },
+                    {
+                        $sort: {
+                            hscode: 1 // Sort in ascending order (use -1 for descending)
+                        }
                     }
                 ]
             );
+
 
             successMiddleware(
                 {
@@ -1542,6 +1464,11 @@ class exEmController implements Controller {
                         $project: {
                             _id: 0,
                             product: "$_id"     // Rename _id to product
+                        }
+                    },
+                    {
+                        $sort: {
+                            product: 1 // Sort in ascending order (use -1 for descending)
                         }
                     }
                 ]
@@ -1586,6 +1513,11 @@ class exEmController implements Controller {
                         $project: {
                             _id: 0,            // Exclude the _id field
                             country: "$_id"     // Rename _id to Country
+                        }
+                    },
+                    {
+                        $sort: {
+                            country: 1 // Sort in ascending order (use -1 for descending)
                         }
                     }
 

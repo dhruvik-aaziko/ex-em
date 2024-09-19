@@ -8,7 +8,8 @@ import {
   ROUTES,
   STATUS_CODE,
   SUCCESS_MESSAGES,
-  EMPTY
+  EMPTY,
+  COMMON_CONSTANT
 } from '../../../constants';
 import uploadHandler from '../../../utils/multer';
 import Controller from '../../../interfaces/controller.interface';
@@ -22,6 +23,9 @@ import authMiddleware from '../../../middleware/auth.middleware';
 import { RequestWithAdmin } from '../../../interfaces/requestWithAdmin.interface';
 import adminModel from '../../admin/admin.model';
 import contaceInfoModel from '../contactinfo/contactInfo.model'
+import { validateFile } from '../../../utils/validationFunctions';
+import { audioFileUploadHandle, fileUploadHandle, pdfFileUploadHandle, videoFileUploadHandle } from '../../../utils/fileUploadHandle';
+
 const { MONGO_DB_EXEM } = getconfig();
 
 class MeetingController {
@@ -36,21 +40,47 @@ class MeetingController {
   }
 
   private initializeRoutes() {
-    this.router.post(`${this.path}/createMeeting`, this.createMeeting); // Create a new Meeting
-    this.router.post(`${this.path}/getAllMeetings`, this.getAllMeetings); // Get all Meetings
-    this.router.put(`${this.path}/updateMeeting/:id`, this.updateMeeting); // Update a Meeting by ID
-    this.router.delete(`${this.path}/deleteMeeting/:id`, this.deleteMeeting); // Delete a Meeting by ID
+    this.router.post(`${this.path}/createMeeting`, authMiddleware,
+      uploadHandler.fields([
+
+        { name: "image", maxCount: 1 },
+        { name: "video", maxCount: 1 },
+        { name: "audio", maxCount: 1 },
+        { name: "document", maxCount: 1 }
+
+      ]), this.createMeeting); // Create a new Meeting
+
+    this.router.post(`${this.path}/getAllMeetings`, authMiddleware, this.getAllMeetings); // Get all Meetings
+    this.router.put(`${this.path}/updateMeeting/:id`, authMiddleware, this.updateMeeting); // Update a Meeting by ID
+    this.router.delete(`${this.path}/deleteMeeting/:id`, authMiddleware, this.deleteMeeting); // Delete a Meeting by ID
 
     // Routes for notes within Meetings
-    this.router.put(`${this.path}/addnote/:id`, this.addNoteToMeeting); // Add a new note
-    this.router.put(`${this.path}/updatenote`, this.updateNote); // Update a note
-    this.router.delete(`${this.path}/deletenote`, this.deleteNote); // Delete a note
+    this.router.post(`${this.path}/addnote/:id`, uploadHandler.fields([
+
+      { name: "image", maxCount: 1 },
+      { name: "video", maxCount: 1 },
+      { name: "audio", maxCount: 1 },
+      { name: "document", maxCount: 1 }
+
+    ]),
+      authMiddleware, this.addNoteToMeeting); // Add a new note
+    this.router.post(`${this.path}/updatenote`, uploadHandler.fields([
+
+      { name: "image", maxCount: 1 },
+      { name: "video", maxCount: 1 },
+      { name: "audio", maxCount: 1 },
+      { name: "document", maxCount: 1 }
+
+    ]),
+      authMiddleware, this.updateNote); // Update a note
+
+    this.router.delete(`${this.path}/deletenote`, authMiddleware, this.deleteNote); // Delete a note
 
 
-    this.router.post(`${this.path}/personName`, this.personName);
-    this.router.post(`${this.path}/phone`, this.phone);
-    this.router.post(`${this.path}/email`, this.email);
-    this.router.post(`${this.path}/phoneEmail`, this.phoneEmail);
+    this.router.post(`${this.path}/personName`, authMiddleware, this.personName);
+    this.router.post(`${this.path}/phone`, authMiddleware, this.phone);
+    this.router.post(`${this.path}/email`, authMiddleware, this.email);
+    this.router.post(`${this.path}/phoneEmail`, authMiddleware, this.phoneEmail);
 
 
     this.router.post(
@@ -74,9 +104,55 @@ class MeetingController {
     next: NextFunction
   ) => {
     try {
-      const meetingData = request.body;
+      const { title, companyName, countryName, industry, personName, phoneNo, emailID, notStarted, position, dateTime, host, location, participants, status, text, RescheduleAt } = request.body;
+      const req = request as RequestWithAdmin;
+      const currentUserId = req.user._id;
+
+      const files: any = request?.files;
+      console.log(files);
+
+
+
+      const fileImageTasks = [{ type: 'image', fileArray: ['image'] }];
+      const fileVideoTasks = [{ type: 'video', fileArray: ['video'] }];
+      const fileAudioTasks = [{ type: 'audio', fileArray: ['audio'] }];
+      const fileDocumentTasks = [{ type: 'document', fileArray: ['document'] }];
+
+      for (let j = 0; j < files?.image?.length; j++) {
+        const file = files?.image[j];
+        await validateFile(/*res,*/  file, 'image', COMMON_CONSTANT.IMAGE_EXT_ARRAY, /*maxSizeCompany*/);
+
+      }
+      for (let j = 0; j < files?.video?.length; j++) {
+        const file = files?.video[j];
+        await validateFile(/*res,*/  file, 'video', COMMON_CONSTANT.VIDEO_EXT_ARRAY, /*maxSizeCompany*/);
+      }
+      for (let j = 0; j < files?.audio?.length; j++) {
+        const file = files?.audio[j];
+        await validateFile(/*res,*/  file, 'audio', COMMON_CONSTANT.AUDIO_EXT_ARRAY, /*maxSizeCompany*/);
+      }
+      for (let j = 0; j < files?.document?.length; j++) {
+        const file = files?.document[j];
+        await validateFile(/*res,*/  file, 'document', COMMON_CONSTANT.DOCUMENT_EXT_ARRAY, /*maxSizeCompany*/);
+      }
+
+      const { imagePictures } = await fileUploadHandle(files, fileImageTasks, false);
+      const { videoData } = await videoFileUploadHandle(files, fileVideoTasks, false);
+      const { audioData } = await audioFileUploadHandle(files, fileAudioTasks, false);
+      const { documentData } = await pdfFileUploadHandle(files, fileDocumentTasks, false);
       const result = await MongoService.create(MONGO_DB_EXEM, this.Meeting, {
-        insert: meetingData
+        insert: {
+          userAdminId: currentUserId, title: title, companyName: companyName, countryName: countryName, industry: industry, personName: personName, phoneNo: phoneNo, emailID: emailID, notStarted: notStarted, position: position, dateTime: dateTime, host: host, location: location, participants: participants, status: status,
+          notes: {
+            text: text,
+            photo: imagePictures,
+            video: videoData,
+            audio: audioData,
+            documents: documentData,
+            RescheduleAt: RescheduleAt
+
+          },
+        }
       });
 
       successMiddleware(
@@ -199,30 +275,81 @@ class MeetingController {
     next: NextFunction
   ) => {
     try {
-      const { id } = request.params;
-      const { text } = request.body;
+      
+      const { text ,RescheduleAt} = request.body;
 
-      if (!text) {
-        return response
-          .status(400)
-          .json({ message: 'Text and timestamp are required' });
+     const files: any = request?.files;
+
+      const req = request as RequestWithAdmin;
+      const currentUserId = req.user._id;
+
+      let task = await MongoService.findOne(MONGO_DB_EXEM, this.Meeting, {
+        query: {
+          _id: request.params.id,
+          userAdminId: currentUserId
+        }
+      })
+      if (!task) {
+        response.statusCode = STATUS_CODE.BAD_REQUEST;
+        throw new Error(ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'task'));
       }
+
+      const fileImageTasks = [{ type: 'image', fileArray: ['image'] }];
+      const fileVideoTasks = [{ type: 'video', fileArray: ['video'] }];
+      const fileAudioTasks = [{ type: 'audio', fileArray: ['audio'] }];
+      const fileDocumentTasks = [{ type: 'document', fileArray: ['document'] }];
+
+      for (let j = 0; j < files?.image?.length; j++) {
+        const file = files?.image[j];
+        await validateFile(/*res,*/  file, 'image', COMMON_CONSTANT.IMAGE_EXT_ARRAY, /*maxSizeCompany*/);
+
+      }
+      for (let j = 0; j < files?.video?.length; j++) {
+        const file = files?.video[j];
+        await validateFile(/*res,*/  file, 'video', COMMON_CONSTANT.VIDEO_EXT_ARRAY, /*maxSizeCompany*/);
+      }
+      for (let j = 0; j < files?.audio?.length; j++) {
+        const file = files?.audio[j];
+        await validateFile(/*res,*/  file, 'audio', COMMON_CONSTANT.AUDIO_EXT_ARRAY, /*maxSizeCompany*/);
+      }
+      for (let j = 0; j < files?.document?.length; j++) {
+        const file = files?.document[j];
+        await validateFile(/*res,*/  file, 'document', COMMON_CONSTANT.DOCUMENT_EXT_ARRAY, /*maxSizeCompany*/);
+      }
+
+      const { imagePictures } = await fileUploadHandle(files, fileImageTasks, false);
+      const { videoData } = await videoFileUploadHandle(files, fileVideoTasks, false);
+      const { audioData } = await audioFileUploadHandle(files, fileAudioTasks, false);
+      const { documentData } = await pdfFileUploadHandle(files, fileDocumentTasks, false);
+
+      logger.info("============imagePictures", imagePictures)
+      logger.info("============videoData", videoData)
+      logger.info("============documentData", documentData)
+      logger.info("============audioData", audioData)
 
       const result = await MongoService.findOneAndUpdate(
         MONGO_DB_EXEM,
         this.Meeting,
         {
-          query: { _id: id },
+          query: { _id: request.params.id },
           updateData: {
-            $push: { notes: { text } }
+            $push: {
+              notes: {
+
+                text:text,
+                RescheduleAt:RescheduleAt,
+                photo: imagePictures,
+                video: videoData,
+                audio: audioData,
+                documents: documentData
+
+              },
+
+            }
           },
           updateOptions: { new: true }
         }
       );
-
-      if (!result) {
-        return response.status(404).json({ message: 'Meeting not found' });
-      }
 
       successMiddleware(
         {
@@ -246,30 +373,71 @@ class MeetingController {
   ) => {
     try {
       // Extract the data from the request body
-      const { newText, meetingId, noteId } = request.body;
-
-      // Check if all required fields are present
-      if (!newText || !meetingId || !noteId) {
-        return response
-          .status(400)
-          .json({ message: 'New text, call ID, and note ID are required' });
-      }
-
-      // Convert callId and noteId to ObjectId
+      const { text,RescheduleAt, meetingId, noteId } = request.body;
+    
       const meetingObjectId = new mongoose.Types.ObjectId(meetingId);
       const noteObjectId = new mongoose.Types.ObjectId(noteId);
 
+      const files: any = request?.files;
 
-      // Perform the update operation
+
+     
+      // Validate the existence of the task
+      let task = await MongoService.findOne(MONGO_DB_EXEM, this.Meeting, {
+        query: { _id: meetingObjectId }
+      });
+      if (!task) {
+        return response.status(404).json({ message: ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'task') });
+      }
+
+      // Validate and handle files
+      const fileImageTasks = [{ type: 'image', fileArray: ['image'] }];
+      const fileVideoTasks = [{ type: 'video', fileArray: ['video'] }];
+      const fileAudioTasks = [{ type: 'audio', fileArray: ['audio'] }];
+      const fileDocumentTasks = [{ type: 'document', fileArray: ['document'] }];
+
+      for (const file of files?.image || []) {
+        await validateFile(file, 'image', COMMON_CONSTANT.IMAGE_EXT_ARRAY);
+      }
+      for (const file of files?.video || []) {
+        await validateFile(file, 'video', COMMON_CONSTANT.VIDEO_EXT_ARRAY);
+      }
+      for (const file of files?.audio || []) {
+        await validateFile(file, 'audio', COMMON_CONSTANT.AUDIO_EXT_ARRAY);
+      }
+      for (const file of files?.document || []) {
+        await validateFile(file, 'document', COMMON_CONSTANT.DOCUMENT_EXT_ARRAY);
+      }
+
+      // Handle file uploads
+      const { imagePictures } = await fileUploadHandle(files, fileImageTasks, false);
+      const { videoData } = await videoFileUploadHandle(files, fileVideoTasks, false);
+      const { audioData } = await audioFileUploadHandle(files, fileAudioTasks, false);
+      const { documentData } = await pdfFileUploadHandle(files, fileDocumentTasks, false);
+
+
       const result = await MongoService.findOneAndUpdate(
         MONGO_DB_EXEM,
         this.Meeting,
         {
-          query: { _id: meetingObjectId, 'notes._id': noteObjectId },
-          updateData: { $set: { 'notes.$.text': newText } },
+          query: {
+            _id: meetingObjectId,
+            'notes._id': noteObjectId
+          },
+          updateData: {
+            $set: {
+              'notes.$.text': text,
+              'notes.$.RescheduleAt': RescheduleAt,
+              'notes.$.photo': imagePictures,
+              'notes.$.video': videoData,
+              'notes.$.audio': audioData,
+              'notes.$.documents': documentData
+            }
+          },
           updateOptions: { new: true }
         }
       );
+
 
       // Check if the result is valid
       if (!result) {

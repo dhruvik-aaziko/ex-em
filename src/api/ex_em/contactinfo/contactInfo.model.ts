@@ -11,6 +11,9 @@ const contaceInfoSchema: Schema = new mongoose.Schema({
     email: { type: String },
     position: { type: String },
     notes: { type: String },
+    hsCode:{type:Number},
+    country:{type: String}
+
     
 
    // emptyField: {type:Schema.Types.Mixed, default: '-' } // Handling "__EMPTY" field

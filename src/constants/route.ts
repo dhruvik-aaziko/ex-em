@@ -24,6 +24,7 @@ export = Object.freeze({
   MEETING:'meeting',
   CALL:'call',
   SHEET:'sheet',
+  FollowUp:'FollowUp',
 
   DASHBOARD :'dashboard',
   COMPANY:'company',
