@@ -7,6 +7,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 const exEm2Schema: Schema = new mongoose.Schema({
     date: { type:Schema.Types.Mixed, },
+    assingAdminID: { type: mongoose.Schema.Types.ObjectId },
     shipmentId: { type:Schema.Types.Mixed },
     hsCode: {type:Schema.Types.Mixed, },
     hsCode_1: { type:Schema.Types.Mixed, },

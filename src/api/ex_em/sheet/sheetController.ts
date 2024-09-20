@@ -33,6 +33,7 @@ class SheetController implements Controller {
 
       
         this.router.post(`${this.path}/getsheet`,authMiddleware, this.getsheet);
+        this.router.post(`${this.path}/getSheetData`,authMiddleware, this.getSheetData);
         this.router.delete(`${this.path}/deletesheet`,authMiddleware, this.deletesheet);
       }
  
@@ -68,6 +69,35 @@ class SheetController implements Controller {
         }
     };
 
+    public getSheetData = async (
+        request: Request,
+        response: Response,
+        next: NextFunction
+    ) => {
+        try {
+            
+            const { sheetName } = request.body;
+            const result = await MongoService.find(MONGO_DB_EXEM, this.exEm, { query:{sheetName:sheetName} });
+
+            if (!result) {
+                return response.status(404).json({ message: 'sheet data info not found' });
+            }
+
+            successMiddleware(
+                {
+                    message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `sheet`),
+                    data: result
+                },
+                request,
+                response,
+                next
+            );
+        } catch (error) {
+            logger.error(`Error fetching contact info: ${error}`);
+            next(error);
+        }
+    };
+
 
 
     // Delete contact info by ID
@@ -88,7 +118,7 @@ class SheetController implements Controller {
 
             successMiddleware(
                 {
-                    message: 'Contact information deleted successfully',
+                    message: SUCCESS_MESSAGES.COMMON.DELETE_SUCCESS.replace(':attribute', `sheet `),
                     data: data
                 },
                 request,

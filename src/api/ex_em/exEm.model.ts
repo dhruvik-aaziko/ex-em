@@ -8,6 +8,8 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 const exEmSchema: Schema = new mongoose.Schema({
     date: { type:Schema.Types.Mixed, },
+    assingAdminID: { type: mongoose.Schema.Types.ObjectId,default:null },
+   // assingAdminName: { type: String,default:null },
     shipmentId: { type:Schema.Types.Mixed },
     hsCode: {type:Schema.Types.Mixed, },
     hsCode_1: { type:Schema.Types.Mixed, },
@@ -42,4 +44,4 @@ const exEmSchema: Schema = new mongoose.Schema({
 
 const exEmModel = mongoose.model<exEm & mongoose.Document>('exEm', exEmSchema)
 export default { model: exEmModel, modelSchema: exEmSchema, modelName: 'exEm' };
-
+ 

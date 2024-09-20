@@ -15,7 +15,7 @@ export = Object.freeze({
   LSQ : 'lsq',
   LSQ_PRODUCT_INFORMATION : 'lsqProductInformation',
  
-  EX_EM:'exem',
+EX_EM:'exem',
   EX_EM_FULLRESPONCE:'fullResponce',
   CONTACT_INFO:'contactInfo',
   NOTES:'notes',

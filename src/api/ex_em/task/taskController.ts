@@ -142,6 +142,8 @@ class taskController {
         text
       } = request.body;
 
+      const notes = JSON.parse(request.body.notes);
+      const text2 = notes.text;     
       let task = await MongoService.findOne(MONGO_DB_EXEM, this.task, {
         query: {
           taskOwner: taskOwner,
@@ -167,7 +169,7 @@ class taskController {
       const currentUserId = req.user._id;
       
       const files: any = request?.files;
-   console.log(files);
+      console.log(files);
    
 
 
@@ -215,7 +217,7 @@ class taskController {
           priority: priority,
           reminder: reminder,
           notes: {
-            text:text,
+            text:text2,
             photo: imagePictures,
             video: videoData,
             audio: audioData,
