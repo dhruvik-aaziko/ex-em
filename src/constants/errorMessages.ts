@@ -91,7 +91,7 @@ export = Object.freeze({
 
   USER_ACC_DELETED: 'Your account has been deleted.',
 
-  ALREADY_LOGIN: 'Login into another device.',
+  ALREADY_LOGIN: 'Allready Login in another device.',
 
   GAME_INFO_INCOMPLETE:
     'Please complete game Info before uploading game build.',

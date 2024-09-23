@@ -17,14 +17,14 @@ import { RequestWithAdmin } from '../../interfaces/requestWithAdmin.interface';
 import TokenData from '../../interfaces/tokenData.interface';
 import DataStoredInToken from '../../interfaces/dataStoredInToken';
 import { sendEmail } from '../../utils/sendMail';
-const { MONGO_DB_EXEM ,JWT_SECRET} = getconfig();
+const { MONGO_DB_EXEM, JWT_SECRET } = getconfig();
 
 class adminController implements Controller {
   public path = `/${ROUTES.ADMIN}`;
   public router = Router();
   private validation = new AdminValidation();
   private Admin = adminModel;
-  
+
 
   constructor() {
     this.initializeRoutes();
@@ -230,7 +230,7 @@ class adminController implements Controller {
     }
 
   };
-
+//change
   private adminLoggingIn = async (
     request: Request,
     response: Response,
@@ -246,6 +246,18 @@ class adminController implements Controller {
       if (!admin) {
         response.statusCode = STATUS_CODE.NOT_FOUND;
         throw new Error(ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'Admin'));
+      }
+   console.log(admin);
+   
+      const chekAdminLogin = await MongoService.findOne(MONGO_DB_EXEM, this.Admin, {
+        query: { _id: admin._id },
+        select: 'isActive'
+      });
+
+      console.log("check status", chekAdminLogin)
+      if (chekAdminLogin.isActive === true) {
+        response.statusCode = STATUS_CODE.BAD_REQUEST;
+        throw new Error(ERROR_MESSAGES.ALREADY_LOGIN.replace(':attribute', 'admin'));
       }
 
       const isPasswordMatching = await bcrypt.compare(password, admin.password);
@@ -322,16 +334,16 @@ class adminController implements Controller {
       }
 
       if (isActive == true) {
-        query = {...query, isActive: isActive,role: USER_CONSTANT.ROLES.admin } 
-      }else if(isActive == false){
-        query = {...query, isActive: isActive,role: USER_CONSTANT.ROLES.admin }
+        query = { ...query, isActive: isActive, role: USER_CONSTANT.ROLES.admin }
+      } else if (isActive == false) {
+        query = { ...query, isActive: isActive, role: USER_CONSTANT.ROLES.admin }
       }
 
       console.log(Object.keys(query).length)
       if (Object.keys(query).length === NUMERICAL.ZERO) {
-        query= {...query, role: USER_CONSTANT.ROLES.admin }
-      } 
-      console.log("======>>>>>>",query)
+        query = { ...query, role: USER_CONSTANT.ROLES.admin }
+      }
+      console.log("======>>>>>>", query)
       const admin = await MongoService.pagination(MONGO_DB_EXEM, adminModel, {
         query,
         select: "name email isActive role lastName",
@@ -413,7 +425,8 @@ class adminController implements Controller {
       if (!admin) {
         response.statusCode = STATUS_CODE.BAD_REQUEST;
         throw new Error(ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'admin'));
-      } 
+      }
+      
 
       const adminData: Admin = await MongoService.findOneAndUpdate(MONGO_DB_EXEM, this.Admin, {
         query: { _id: request.params.id },
@@ -635,11 +648,18 @@ class adminController implements Controller {
     try {
       const req = request as RequestWithAdmin;
       const adminId = req.user._id;
-
+      
       await MongoService.findOneAndUpdate(MONGO_DB_EXEM, this.Admin, {
         query: { _id: adminId },
-        updateData: { $ : { token: "" } }
+        updateData: { token: "", isActive: false } // Ensure isActive is a boolean
       });
+      
+      // const adminData: Admin = await MongoService.findOneAndUpdate(MONGO_DB_EXEM, this.Admin, {
+      //   query: { _id: request.params.id },
+      //   updateData: {
+      //     $set: { isActive: false }
+      //   }
+      // });
 
       return successMiddleware(
         {
@@ -698,46 +718,46 @@ class adminController implements Controller {
 
 
 
-private getAllAdmin = async (
-  request: Request,
-  response: Response,
-  next: NextFunction
-) => {
-  try {
+  private getAllAdmin = async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
+    try {
 
-    const req = request as RequestWithAdmin;
-   
+      const req = request as RequestWithAdmin;
 
-    let allAdminData = await MongoService.find(MONGO_DB_EXEM, this.Admin, {
-      query: { role: "admin" },
-      select: 'name _id'
-    });
-    
-     
-    
 
-    if (!allAdminData) {
-      response.statusCode = STATUS_CODE.BAD_REQUEST;
-      throw new Error(ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'admin'));
+      let allAdminData = await MongoService.find(MONGO_DB_EXEM, this.Admin, {
+        query: { role: "admin" },
+        select: 'name _id'
+      });
+
+
+
+
+      if (!allAdminData) {
+        response.statusCode = STATUS_CODE.BAD_REQUEST;
+        throw new Error(ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'admin'));
+      }
+
+
+      console.log("moduleAcsess=------", allAdminData)
+      return successMiddleware(
+        {
+          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'Admin'),
+          data: allAdminData
+        },
+        request,
+        response,
+        next
+      );
+    } catch (error) {
+      logger.error(`There was an issue into fetch getAllModule.: ${error}`);
+      return next(error);
     }
 
-   
-    console.log("moduleAcsess=------", allAdminData)
-    return successMiddleware(
-      {
-        message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'Admin'),
-        data: allAdminData
-      },
-      request,
-      response,
-      next
-    );
-  } catch (error) {
-    logger.error(`There was an issue into fetch getAllModule.: ${error}`);
-    return next(error);
-  }
-
-};
+  };
 
 }
 

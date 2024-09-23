@@ -105,6 +105,12 @@ class MeetingController {
   ) => {
     try {
       const { title, companyName, countryName, industry, personName, phoneNo, emailID, notStarted, position, dateTime, host, location, participants, status, text, RescheduleAt } = request.body;
+      const notesObject = JSON.parse(request.body.notes);
+
+      // Now you can access the text property
+      const text2 = notesObject.text;
+      console.log(text2);
+
       const req = request as RequestWithAdmin;
       const currentUserId = req.user._id;
 
@@ -144,7 +150,7 @@ class MeetingController {
         insert: {
           userAdminId: currentUserId, title: title, companyName: companyName, countryName: countryName, industry: industry, personName: personName, phoneNo: phoneNo, emailID: emailID, notStarted: notStarted, position: position, dateTime: dateTime, host: host, location: location, participants: participants, status: status,
           notes: {
-            text: text,
+            text: text2,
             photo: imagePictures,
             video: videoData,
             audio: audioData,
@@ -275,10 +281,10 @@ class MeetingController {
     next: NextFunction
   ) => {
     try {
-      
-      const { text ,RescheduleAt} = request.body;
 
-     const files: any = request?.files;
+      const { text, RescheduleAt } = request.body;
+
+      const files: any = request?.files;
 
       const req = request as RequestWithAdmin;
       const currentUserId = req.user._id;
@@ -336,8 +342,8 @@ class MeetingController {
             $push: {
               notes: {
 
-                text:text,
-                RescheduleAt:RescheduleAt,
+                text: text,
+                RescheduleAt: RescheduleAt,
                 photo: imagePictures,
                 video: videoData,
                 audio: audioData,
@@ -373,15 +379,15 @@ class MeetingController {
   ) => {
     try {
       // Extract the data from the request body
-      const { text,RescheduleAt, meetingId, noteId } = request.body;
-    
+      const { text, RescheduleAt, meetingId, noteId } = request.body;
+
       const meetingObjectId = new mongoose.Types.ObjectId(meetingId);
       const noteObjectId = new mongoose.Types.ObjectId(noteId);
 
       const files: any = request?.files;
 
 
-     
+
       // Validate the existence of the task
       let task = await MongoService.findOne(MONGO_DB_EXEM, this.Meeting, {
         query: { _id: meetingObjectId }

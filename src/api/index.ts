@@ -10,6 +10,7 @@ import MeetingController from './ex_em/meeting/meetingController';
 import CallController from './ex_em/call/callController';
 import SheetController from './ex_em/sheet/sheetController';
 import FollowUpController from './ex_em/followUp/followUpController';
+import DealController from './ex_em/deal/dealController';
 
 /**
  * Array of controller instances for the application.
@@ -31,6 +32,7 @@ export const initializesAllControllers = [
    new MeetingController(),
    new CallController(),
    new SheetController(),
-   new FollowUpController()
+   new FollowUpController(),
+   new DealController()
     
 ]

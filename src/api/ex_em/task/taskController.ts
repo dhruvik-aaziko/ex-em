@@ -78,7 +78,7 @@ class taskController {
     this.router.post(
       `${this.path}/updatenote`,
       authMiddleware,
-      this.validation.updateNoteValidation,
+      //this.validation.updateNoteValidation,
       uploadHandler.fields([
         { name: "image", maxCount: 1 },
         { name: "video", maxCount: 1 },
@@ -141,9 +141,19 @@ class taskController {
         reminder,
         text
       } = request.body;
+console.log(request.body);
 
-      const notes = JSON.parse(request.body.notes);
-      const text2 = notes.text;     
+      
+    
+
+       const notesObject = JSON.parse(request.body.notes);
+
+       // Now you can access the text property
+       const text2 = notesObject.text;
+    console.log(text2);
+    
+
+
       let task = await MongoService.findOne(MONGO_DB_EXEM, this.task, {
         query: {
           taskOwner: taskOwner,
@@ -202,7 +212,10 @@ class taskController {
       const { documentData } = await pdfFileUploadHandle(files, fileDocumentTasks, false);
 
 
-      console.log(req.body)
+     
+      
+
+      
       const addTask = await MongoService.create(MONGO_DB_EXEM, this.task, {
         insert: {
           userAdminId: currentUserId,
@@ -218,6 +231,8 @@ class taskController {
           reminder: reminder,
           notes: {
             text:text2,
+           // text:firstNoteText,
+          // text:text2,
             photo: imagePictures,
             video: videoData,
             audio: audioData,
@@ -534,10 +549,10 @@ class taskController {
       const { audioData } = await audioFileUploadHandle(files, fileAudioTasks, false);
       const { documentData } = await pdfFileUploadHandle(files, fileDocumentTasks, false);
 
-      logger.info("============imagePictures", imagePictures)
-      logger.info("============videoData", videoData)
-      logger.info("============documentData", documentData)
-      logger.info("============audioData", audioData)
+      // logger.info("============imagePictures", imagePictures)
+      // logger.info("============videoData", videoData)
+      // logger.info("============documentData", documentData)
+      // logger.info("============audioData", audioData)
 
       const result = await MongoService.findOneAndUpdate(
         MONGO_DB_EXEM,
@@ -626,10 +641,10 @@ class taskController {
       const { audioData } = await audioFileUploadHandle(files, fileAudioTasks, false);
       const { documentData } = await pdfFileUploadHandle(files, fileDocumentTasks, false);
 
-      logger.info("============imagePictures", imagePictures);
-      logger.info("============videoData", videoData);
-      logger.info("============documentData", documentData);
-      logger.info("============audioData", audioData);
+      // logger.info("============imagePictures", imagePictures);
+      // logger.info("============videoData", videoData);
+      // logger.info("============documentData", documentData);
+      // logger.info("============audioData", audioData);
 
       // Update the specific note in the notes array
       const result = await MongoService.findOneAndUpdate(

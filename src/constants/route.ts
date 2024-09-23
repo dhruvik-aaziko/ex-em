@@ -25,6 +25,7 @@ EX_EM:'exem',
   CALL:'call',
   SHEET:'sheet',
   FollowUp:'FollowUp',
+  DEAL:'deal',
 
   DASHBOARD :'dashboard',
   COMPANY:'company',
