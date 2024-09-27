@@ -26,6 +26,7 @@ import { audioFileUploadHandle, fileUploadHandle, pdfFileUploadHandle, videoFile
 import adminModel from '../../admin/admin.model';
 import followUpModel from './followUp.model';
 import callModel from '../call/call.model';
+import { deleteFromS3 } from '../../../utils/s3';
 
 const { MONGO_DB_EXEM } = getconfig();
 
@@ -94,7 +95,7 @@ class FollowUpController {
       authMiddleware,
       this.deleteNoteFromFollowUp); // Delete a note
 
-    //===============================================================================================
+    //=====================================================////////==========================================
 
     this.router.post(
       `${this.path}/FollowUpOpenActivity`,
@@ -127,7 +128,7 @@ class FollowUpController {
         insert: {
           name: name,
           userAdminId: currentUserId,
-          assigne:assigne,
+          assigne: assigne,
           companyName: companyName,
           position: position,
           callType: callType,
@@ -166,7 +167,7 @@ class FollowUpController {
     try {
       const { companyName } = request.body
       const result = await MongoService.find(MONGO_DB_EXEM, this.FollowUp, {
-        query: { companyName:companyName }
+        query: { companyName: companyName }
       });
 
       successMiddleware(
@@ -192,7 +193,7 @@ class FollowUpController {
     try {
       const { id } = request.params;
       const {
-        name, companyName, position, callType, outgoingStatus, dateTime, agent, subject, callResult, callPurpose,assigne
+        name, companyName, position, callType, outgoingStatus, dateTime, agent, subject, callResult, callPurpose, assigne
       } = request.body;
 
       const result = await MongoService.findOneAndUpdate(
@@ -204,7 +205,7 @@ class FollowUpController {
             $set: {
               name: name,
               companyName: companyName,
-              assigne:assigne,
+              assigne: assigne,
               position: position,
               callType: callType,
               outgoingStatus: outgoingStatus,
@@ -238,6 +239,8 @@ class FollowUpController {
     }
   };
 
+  //delete s3done with 
+
   public deleteFollowUp = async (
     request: Request,
     response: Response,
@@ -245,6 +248,27 @@ class FollowUpController {
   ) => {
     try {
       const { id } = request.params;
+
+      const taskToDelete = await MongoService.findOne(MONGO_DB_EXEM, this.FollowUp, {
+        query: { _id: id }
+      });
+
+      if (!taskToDelete) {
+        return response.status(404).json({ message: 'Task not found' });
+      }
+
+      // Gather all file URLs from the notes
+      const fileKeys = taskToDelete.notes.flatMap((note: { video: any[]; photo: any[]; audio: any[]; documents: any[]; }) => [
+        ...note.video.map((url: string) => url.split('/').slice(3).join('/')),
+        ...note.photo.map((url: string) => url.split('/').slice(3).join('/')),
+        ...note.audio.map((url: string) => url.split('/').slice(3).join('/')),
+        ...note.documents.map((url: string) => url.split('/').slice(3).join('/'))
+      ]);
+
+      // Delete files from S3
+      const deletePromises = fileKeys.map((key: string) => deleteFromS3(key));
+      await Promise.all(deletePromises);
+
       const result = await MongoService.deleteOne(MONGO_DB_EXEM, this.FollowUp, {
         query: { _id: id }
       });
@@ -268,7 +292,7 @@ class FollowUpController {
     }
   };
 
-  //=====================================================================================================================+++++++++++++--------**********+-*/-+*/-----------------
+  //================================================================================///////////////////////////////\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
 
   public addNoteToFollowUp = async (
@@ -322,10 +346,8 @@ class FollowUpController {
       const { audioData } = await audioFileUploadHandle(files, fileAudioFollowUps, false);
       const { documentData } = await pdfFileUploadHandle(files, fileDocumentFollowUps, false);
 
-      logger.info("============imagePictures", imagePictures)
-      logger.info("============videoData", videoData)
-      logger.info("============documentData", documentData)
-      logger.info("============audioData", audioData)
+      console.log("imagePictures=================",imagePictures);
+      
 
       const result = await MongoService.findOneAndUpdate(
         MONGO_DB_EXEM,
@@ -377,18 +399,28 @@ class FollowUpController {
       const files: any = request?.files;
 
 
-      // Convert IDs to ObjectId  
+
       const FollowUpObjectId = new mongoose.Types.ObjectId(FollowUpId);
       const noteObjectId = new mongoose.Types.ObjectId(noteId);
 
-      // Validate the existence of the FollowUp
+
       let FollowUp = await MongoService.findOne(MONGO_DB_EXEM, this.FollowUp, {
         query: { _id: FollowUpObjectId }
       });
       if (!FollowUp) {
         return response.status(404).json({ message: ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'FollowUp') });
       }
-
+      // Extract the existing note to delete old files
+      const existingNote = FollowUp.notes.find((note: { _id: { equals: (arg0: mongoose.Types.ObjectId) => any; }; }) => note._id.equals(noteObjectId));
+      if (!existingNote) {
+        return response.status(404).json({ message: ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'note') });
+      }
+      const oldFileKeys = [
+        ...existingNote.photo.map((url: string) => url.split('/').slice(3).join('/')),
+        ...existingNote.audio.map((url: string) => url.split('/').slice(3).join('/')),
+        ...existingNote.video.map((url: string) => url.split('/').slice(3).join('/')),
+        ...existingNote.documents.map((url: string) => url.split('/').slice(3).join('/'))
+      ];
       // Validate and handle files
       const fileImageFollowUps = [{ type: 'image', fileArray: ['image'] }];
       const fileVideoFollowUps = [{ type: 'video', fileArray: ['video'] }];
@@ -414,10 +446,10 @@ class FollowUpController {
       const { audioData } = await audioFileUploadHandle(files, fileAudioFollowUps, false);
       const { documentData } = await pdfFileUploadHandle(files, fileDocumentFollowUps, false);
 
-      logger.info("============imagePictures", imagePictures);
-      logger.info("============videoData", videoData);
-      logger.info("============documentData", documentData);
-      logger.info("============audioData", audioData);
+
+      // Delete old files from S3
+      const deletePromises = oldFileKeys.map(key => deleteFromS3(key));
+      await Promise.all(deletePromises);
 
       // Update the specific note in the notes array
       const result = await MongoService.findOneAndUpdate(
@@ -476,6 +508,30 @@ class FollowUpController {
       const FollowUpObjectId = new mongoose.Types.ObjectId(FollowUpId);
       const noteObjectId = new mongoose.Types.ObjectId(noteId);
 
+      const task = await MongoService.findOne(
+        MONGO_DB_EXEM,
+        this.FollowUp,
+        {
+          query: { _id: FollowUpObjectId, 'notes._id': noteObjectId }
+        }
+      );
+
+      // Handle case where no task is found
+      if (!task) {
+        return response.status(404).json({ message: 'Task not found or note not found' });
+      }
+
+      // Extract the note to be deleted
+      const noteToDelete = task.notes.find((note: any) => note._id.equals(noteObjectId));
+
+      // Prepare to delete files from S3 by extracting keys
+      const fileKeys = [
+        ...noteToDelete.photo.map((url: string) => url.split('/').slice(3).join('/')),
+        ...noteToDelete.audio.map((url: string) => url.split('/').slice(3).join('/')),
+        ...noteToDelete.video.map((url: string) => url.split('/').slice(3).join('/')),
+        ...noteToDelete.documents.map((url: string) => url.split('/').slice(3).join('/'))
+      ];
+
       // Perform the update operation
       const result = await MongoService.findOneAndUpdate(
         MONGO_DB_EXEM,
@@ -491,6 +547,10 @@ class FollowUpController {
       if (!result || result.matchedCount === 0) {
         return response.status(404).json({ message: 'FollowUp not found or note not found' });
       }
+
+      // Delete files from S3
+      const deletePromises = fileKeys.map(key => deleteFromS3(key));
+      await Promise.all(deletePromises);
 
       // Successful response
       successMiddleware(
@@ -599,7 +659,7 @@ class FollowUpController {
         query: {
           company: companyName,
           userAdminId: currentUserId,
-        //  createdAt: { $ne: new Date() },
+          //  createdAt: { $ne: new Date() },
           callResult: { $ne: "dead_lead" }
         }
 
@@ -621,6 +681,7 @@ class FollowUpController {
       next(error);
     }
   };
+
 }
 
 export default FollowUpController;

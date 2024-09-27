@@ -11,6 +11,7 @@ import CallController from './ex_em/call/callController';
 import SheetController from './ex_em/sheet/sheetController';
 import FollowUpController from './ex_em/followUp/followUpController';
 import DealController from './ex_em/deal/dealController';
+import DropdownController from './ex_em/dropdown/dropdownController';
 
 /**
  * Array of controller instances for the application.
@@ -33,6 +34,7 @@ export const initializesAllControllers = [
    new CallController(),
    new SheetController(),
    new FollowUpController(),
-   new DealController()
+   new DealController(),
+   new DropdownController()
     
 ]

@@ -25,6 +25,7 @@ import adminModel from '../../admin/admin.model';
 import contaceInfoModel from '../contactinfo/contactInfo.model'
 import { validateFile } from '../../../utils/validationFunctions';
 import { audioFileUploadHandle, fileUploadHandle, pdfFileUploadHandle, videoFileUploadHandle } from '../../../utils/fileUploadHandle';
+import { deleteFromS3 } from '../../../utils/s3';
 
 const { MONGO_DB_EXEM } = getconfig();
 
@@ -50,8 +51,8 @@ class MeetingController {
 
       ]), this.createMeeting); // Create a new Meeting
 
-    this.router.post(`${this.path}/getAllMeetings`, authMiddleware, this.getAllMeetings); // Get all Meetings
-    this.router.put(`${this.path}/updateMeeting/:id`, authMiddleware, this.updateMeeting); // Update a Meeting by ID
+    this.router.post(`${this.path}/getMeetings/:id`, authMiddleware, this.getMeetings);
+    this.router.put(`${this.path}/updateMeeting/:id`, authMiddleware, uploadHandler.none(), this.updateMeeting);
     this.router.delete(`${this.path}/deleteMeeting/:id`, authMiddleware, this.deleteMeeting); // Delete a Meeting by ID
 
     // Routes for notes within Meetings
@@ -74,7 +75,7 @@ class MeetingController {
     ]),
       authMiddleware, this.updateNote); // Update a note
 
-    this.router.delete(`${this.path}/deletenote`, authMiddleware, this.deleteNote); // Delete a note
+    this.router.delete(`${this.path}/deletenote`, authMiddleware, uploadHandler.none(), this.deleteNote); // Delete a note
 
 
     this.router.post(`${this.path}/personName`, authMiddleware, this.personName);
@@ -95,6 +96,11 @@ class MeetingController {
 
       this.meetingCompleteActivity);
 
+    this.router.post(
+      `${this.path}/meetingAllActivity`,
+      authMiddleware,
+      this.meetingAllActivity);
+
 
   }
 
@@ -104,20 +110,20 @@ class MeetingController {
     next: NextFunction
   ) => {
     try {
-      const { title, companyName, countryName, industry, personName, phoneNo, emailID, notStarted, position, dateTime, host, location, participants, status, text, RescheduleAt } = request.body;
-      const notesObject = JSON.parse(request.body.notes);
+      const { title, companyName, countryName, industry, personName, phoneNo, emailID, notStarted, position, dateTime, host, location, participants, status, text, RescheduleAt }
+        = request.body;
 
-      // Now you can access the text property
-      const text2 = notesObject.text;
-      console.log(text2);
+      console.log("this is meeting body ", request.body)
+      if (request.body.notes) {
+        const notesObject = JSON.parse(request.body.notes);
+        var text2 = notesObject.text;
+        console.log(text2);
+      }
 
       const req = request as RequestWithAdmin;
       const currentUserId = req.user._id;
 
       const files: any = request?.files;
-      console.log(files);
-
-
 
       const fileImageTasks = [{ type: 'image', fileArray: ['image'] }];
       const fileVideoTasks = [{ type: 'video', fileArray: ['video'] }];
@@ -148,9 +154,11 @@ class MeetingController {
       const { documentData } = await pdfFileUploadHandle(files, fileDocumentTasks, false);
       const result = await MongoService.create(MONGO_DB_EXEM, this.Meeting, {
         insert: {
-          userAdminId: currentUserId, title: title, companyName: companyName, countryName: countryName, industry: industry, personName: personName, phoneNo: phoneNo, emailID: emailID, notStarted: notStarted, position: position, dateTime: dateTime, host: host, location: location, participants: participants, status: status,
+          userAdminId: currentUserId, title: title, companyName: companyName, countryName: countryName, industry: industry, personName: personName,
+           phoneNo: phoneNo, emailID: emailID, notStarted: notStarted, position: position, dateTime: dateTime, host: host, location: location,
+            participants: participants, status: status,
           notes: {
-            text: text2,
+            text: text2 || "",
             photo: imagePictures,
             video: videoData,
             audio: audioData,
@@ -176,15 +184,17 @@ class MeetingController {
     }
   };
 
-  public getAllMeetings = async (
+  public getMeetings = async (
     request: Request,
     response: Response,
     next: NextFunction
   ) => {
     try {
       const { companyName } = request.body
-      const result = await MongoService.find(MONGO_DB_EXEM, this.Meeting, {
-        query: { companyName: companyName }
+      const result = await MongoService.findOne(MONGO_DB_EXEM, this.Meeting, {
+        query: { _id: request.params.id },
+        select: 'notes'
+
       });
 
       successMiddleware(
@@ -196,12 +206,12 @@ class MeetingController {
         response,
         next
       );
+
     } catch (error) {
       logger.error(`Error fetching Meetings: ${error}`);
       next(error);
     }
   };
-
 
 
   public updateMeeting = async (
@@ -211,18 +221,63 @@ class MeetingController {
   ) => {
     try {
       const { id } = request.params;
-      const updateData = request.body;
+      const {
+
+        title, companyName, countryName, industry, personName, phoneNo, emailID, notStarted,
+        position, dateTime, host, location, participants, status, rescheduleNote, RescheduleAt
+
+      }
+        = request.body;
 
       const result = await MongoService.findOneAndUpdate(
         MONGO_DB_EXEM,
         this.Meeting,
         {
           query: { _id: id },
-          updateData: { $set: updateData },
+          updateData: {
+            $set: {
+              title: title, companyName: companyName, countryName: countryName, industry: industry, personName: personName, phoneNo: phoneNo,
+              emailID: emailID, notStarted: notStarted, position: position, dateTime: dateTime, host: host, location: location, 
+              participants: participants, status: status
+            }
+          },
           updateOptions: { new: true }
         }
       );
 
+      if (rescheduleNote) {
+        const result = await MongoService.findOneAndUpdate(
+          MONGO_DB_EXEM,
+          this.Meeting,
+          {
+            query: { _id: id },
+            updateData: {
+              $push: {
+                notes: {
+                  text: rescheduleNote,
+                  RescheduleAt: RescheduleAt
+
+                },
+
+              }
+            },
+            updateOptions: { new: true }
+          }
+        );
+
+
+        return successMiddleware(
+          {
+            message: 'Meeting and Reason Note updated successfully',
+            data: result
+          },
+          request,
+          response,
+          next
+        );
+
+
+      }
       if (!result) {
         return response.status(404).json({ message: 'Meeting not found' });
       }
@@ -249,6 +304,29 @@ class MeetingController {
   ) => {
     try {
       const { id } = request.params;
+
+      // Step 1: Retrieve the meeting to get associated files
+      const meeting = await MongoService.findOne(MONGO_DB_EXEM, this.Meeting, {
+        query: { _id: id }
+      });
+
+      if (!meeting) {
+        return response.status(404).json({ message: 'Meeting not found' });
+      }
+
+      // Step 2: Extract file URLs to delete from S3
+      const fileKeys = [
+        ...meeting.notes.flatMap((note: any) => note.photo.map((url: string) => url.split('/').slice(3).join('/'))),
+        ...meeting.notes.flatMap((note: any) => note.audio.map((url: string) => url.split('/').slice(3).join('/'))),
+        ...meeting.notes.flatMap((note: any) => note.video.map((url: string) => url.split('/').slice(3).join('/'))),
+        ...meeting.notes.flatMap((note: any) => note.documents.map((url: string) => url.split('/').slice(3).join('/')))
+      ];
+
+      // Step 3: Delete files from S3
+      const deletePromises = fileKeys.map(key => deleteFromS3(key));
+      await Promise.all(deletePromises);
+
+      // Step 4: Delete the meeting from the database
       const result = await MongoService.deleteOne(MONGO_DB_EXEM, this.Meeting, {
         query: { _id: id }
       });
@@ -257,6 +335,7 @@ class MeetingController {
         return response.status(404).json({ message: 'Meeting not found' });
       }
 
+      // Step 5: Send success response
       successMiddleware(
         {
           message: 'Meeting deleted successfully',
@@ -271,6 +350,7 @@ class MeetingController {
       next(error);
     }
   };
+
 
   //       ====================================================================================================================
 
@@ -289,15 +369,15 @@ class MeetingController {
       const req = request as RequestWithAdmin;
       const currentUserId = req.user._id;
 
-      let task = await MongoService.findOne(MONGO_DB_EXEM, this.Meeting, {
+      let meeting = await MongoService.findOne(MONGO_DB_EXEM, this.Meeting, {
         query: {
           _id: request.params.id,
           userAdminId: currentUserId
         }
       })
-      if (!task) {
+      if (!meeting) {
         response.statusCode = STATUS_CODE.BAD_REQUEST;
-        throw new Error(ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'task'));
+        throw new Error(ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'meeting'));
       }
 
       const fileImageTasks = [{ type: 'image', fileArray: ['image'] }];
@@ -372,6 +452,7 @@ class MeetingController {
     }
   };
 
+
   public updateNote = async (
     request: Request,
     response: Response,
@@ -388,13 +469,25 @@ class MeetingController {
 
 
 
-      // Validate the existence of the task
-      let task = await MongoService.findOne(MONGO_DB_EXEM, this.Meeting, {
+      // Validate the existence of the meeting
+      let meeting = await MongoService.findOne(MONGO_DB_EXEM, this.Meeting, {
         query: { _id: meetingObjectId }
       });
-      if (!task) {
-        return response.status(404).json({ message: ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'task') });
+      if (!meeting) {
+        return response.status(404).json({ message: ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'meeting') });
       }
+
+      // Extract the existing note to delete old files
+      const existingNote = meeting.notes.find((note: { _id: { equals: (arg0: mongoose.Types.ObjectId) => any; }; }) => note._id.equals(noteObjectId));
+      if (!existingNote) {
+        return response.status(404).json({ message: ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'note') });
+      }
+      const oldFileKeys = [
+        ...existingNote.photo.map((url: string) => url.split('/').slice(3).join('/')),
+        ...existingNote.audio.map((url: string) => url.split('/').slice(3).join('/')),
+        ...existingNote.video.map((url: string) => url.split('/').slice(3).join('/')),
+        ...existingNote.documents.map((url: string) => url.split('/').slice(3).join('/'))
+      ];
 
       // Validate and handle files
       const fileImageTasks = [{ type: 'image', fileArray: ['image'] }];
@@ -444,7 +537,8 @@ class MeetingController {
         }
       );
 
-
+      const deletePromises = oldFileKeys.map(key => deleteFromS3(key));
+      await Promise.all(deletePromises);
       // Check if the result is valid
       if (!result) {
         return response.status(404).json({ message: 'Contact info or note not found' });
@@ -479,12 +573,36 @@ class MeetingController {
 
       // Validate `callId` and `noteId`
       if (!meetingId || !noteId) {
-        return response.status(400).json({ message: 'Call ID and note ID are required' });
+        return response.status(400).json({ message: 'meeting ID and note ID are required' });
       }
 
       // Convert `callId` and `noteId` to ObjectId
       const meetingObjectId = new mongoose.Types.ObjectId(meetingId);
       const noteObjectId = new mongoose.Types.ObjectId(noteId);
+
+      const meeting = await MongoService.findOne(
+        MONGO_DB_EXEM,
+        this.Meeting,
+        {
+          query: { _id: meetingObjectId, 'notes._id': noteObjectId }
+        }
+      );
+
+      // Handle case where no meeting is found
+      if (!meeting) {
+        return response.status(404).json({ message: 'meeting not found or note not found' });
+      }
+
+      // Extract the note to be deleted
+      const noteToDelete = meeting.notes.find((note: any) => note._id.equals(noteObjectId));
+
+      // Prepare to delete files from S3 by extracting keys
+      const fileKeys = [
+        ...noteToDelete.photo.map((url: string) => url.split('/').slice(3).join('/')),
+        ...noteToDelete.audio.map((url: string) => url.split('/').slice(3).join('/')),
+        ...noteToDelete.video.map((url: string) => url.split('/').slice(3).join('/')),
+        ...noteToDelete.documents.map((url: string) => url.split('/').slice(3).join('/'))
+      ];
 
       // Perform the update operation
       const result = await MongoService.findOneAndUpdate(
@@ -501,7 +619,9 @@ class MeetingController {
       if (!result || result.matchedCount === 0) {
         return response.status(404).json({ message: 'Contact info not found or note not found' });
       }
-
+      // Delete files from S3
+      const deletePromises = fileKeys.map(key => deleteFromS3(key));
+      await Promise.all(deletePromises);
       // Successful response
       successMiddleware(
         {
@@ -558,7 +678,7 @@ class MeetingController {
 
       successMiddleware(
         {
-          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `Task`),
+          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `meeting`),
           data: result
         },
         request,
@@ -609,7 +729,7 @@ class MeetingController {
 
       successMiddleware(
         {
-          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `Task`),
+          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `meeting`),
           data: result
         },
         request,
@@ -730,8 +850,56 @@ class MeetingController {
   };
 
 
+  public meetingAllActivity = async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
+    try {
+      // const { companyName } = request.body;
+      const req = request as RequestWithAdmin;
+      const currentUserId = req.user._id;
+
+      // // Fetch the role of the current user
+      // const adminResults = await MongoService.find(MONGO_DB_EXEM, this.Admin, {
+      //   query: { _id: currentUserId },
+      //   select: 'role'
+      // });
 
 
+
+      // const adminResult = adminResults[0];
+
+
+      // // let queryCondition: any = { companyName: companyName, status: { $ne: "complete" } };
+      // let queryCondition: any = { };
+
+      // if (adminResult.role !== 'superAdmin') {
+      //   queryCondition.userAdminId = currentUserId;
+      // }
+
+      const result = await MongoService.find(MONGO_DB_EXEM, this.Meeting, {
+        query: {}
+
+      });
+
+      successMiddleware(
+        {
+          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `All Meeting`),
+          data: result
+        },
+        request,
+        response,
+        next
+      );
+
+    } catch (error) {
+      logger.error(`Error fetching tasks: ${error}`);
+      next(error);
+    }
+  };
 }
+
+
 
 export default MeetingController;

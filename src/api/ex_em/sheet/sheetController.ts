@@ -39,7 +39,6 @@ class SheetController implements Controller {
  
 
    
-    // Get contact info by name
     public getsheet = async (
         request: Request,
         response: Response,

@@ -23,7 +23,7 @@ const meetingSchema: Schema = new mongoose.Schema({
     status: { type: String },
     notes: [{
 
-        text: { type: String, },
+        text: { type: String, default: "" },
         video: [{ type: String, default: [] }],
         photo: [{ type: String, default: [] }],
         audio: [{ type: String, default: [] }],

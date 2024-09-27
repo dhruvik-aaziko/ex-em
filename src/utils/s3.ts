@@ -5,13 +5,15 @@ import { UploadToS3WithPrefixData, uploadToS3WithCustomNameData } from '../inter
 const BUCKET_NAME = process.env.AWS_BUCKET_NAME || '';
 const ACCESS_KEY = process.env.AWS_ACCESS_KEY || '';
 const SECRET_SECRET = process.env.AWS_SECRET_KEY || '';
-const BUCKET_REGION = process.env.AWS_BUCKET_REGION || 'ap-south-1'
+// const BUCKET_REGION = process.env.AWS_BUCKET_REGION || 'us-east-1'
+const BUCKET_REGION = process.env.AWS_BUCKET_REGION || 'blr1'
 // const s3bucket = new AWS.S3({
 //   accessKeyId: ACCESS_KEY,
 //   secretAccessKey: SECRET_SECRET
 // });
 const s3bucket = new AWS.S3({
   endpoint: "https://blr1.digitaloceanspaces.com",
+  region: BUCKET_REGION,
   credentials: {
     accessKeyId: ACCESS_KEY,
     secretAccessKey: SECRET_SECRET,
@@ -137,6 +139,8 @@ export function deleteFromS3(key: string): Promise<any> {
     Key: key
   };
   return new Promise((resolve, reject) => {
+    console.log("im here " ,key);
+    
     s3bucket.deleteObject(params, function (err: any, data: any) {
       if (err) {
         return reject(err);

@@ -22,13 +22,15 @@ const dealSchema: Schema = new mongoose.Schema({
     campaignSource: { type: String, required: false },
     assignedTo: { type: String },
     notes: [{
-        text: { type: String, },
+
+        text: { type: String, default: "" },
         video: [{ type: String, default: [] }],
         photo: [{ type: String, default: [] }],
         audio: [{ type: String, default: [] }],
         documents: [{ type: String, default: [] }],
         createdAt: { type: Date, default: Date.now },
         updatedAt: { type: Date, default: Date.now }
+
     }]
 
 

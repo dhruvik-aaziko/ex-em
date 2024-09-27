@@ -17,7 +17,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 
 const taskSchema: Schema = new mongoose.Schema({
-    
+
     userAdminId: { type: mongoose.Schema.Types.ObjectId, ref: 'admin' },
 
     taskOwner: { type: String, require: true },
@@ -31,7 +31,7 @@ const taskSchema: Schema = new mongoose.Schema({
     priority: { type: String, require: true },
     reminder: { type: Date, require: true },
     notes: [{
-        text: { type: String, },
+        text: { type: String, default: "" },
         video: [{ type: String, default: [] }],
         photo: [{ type: String, default: [] }],
         audio: [{ type: String, default: [] }],

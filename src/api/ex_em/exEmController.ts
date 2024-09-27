@@ -66,11 +66,11 @@ class exEmController implements Controller {
 
 
 
-        // Dropdown
-        this.router.post(`${this.path}/hsCode`, this.hsCode);
-        this.router.post(`${this.path}/product`, this.product);
-        this.router.post(`${this.path}/bCountry`, this.bCountry);
-        this.router.post(`${this.path}/getAllData`, this.getAllData);
+        // // Dropdown
+        // this.router.post(`${this.path}/hsCode`, this.hsCode);
+        // this.router.post(`${this.path}/product`, this.product);
+        // this.router.post(`${this.path}/bCountry`, this.bCountry);
+        // this.router.post(`${this.path}/getAllData`, this.getAllData);
 
         //
         this.router.post(`${this.path}/productInfo`, authMiddleware, this.productInfo);
@@ -751,7 +751,7 @@ class exEmController implements Controller {
                 sCountry: sCountry
             };
 
-            // Conditionally add date range filter if both startDate and endDate are provided
+
             if (startDate && endDate) {
                 const start = new Date(startDate);
                 const end = new Date(endDate);
@@ -1702,9 +1702,9 @@ class exEmController implements Controller {
                 MONGO_DB_EXEM,
                 this.exEm,
                 {
-                    query: { buyer: { $in: companyName } }, // Use $in to match any company name in the array
+                    query: { buyer: { $in: companyName } }, 
                     updateData: {
-                        $set: { assingAdminID: id } // Use admin.name for the name field
+                        $set: { assingAdminID: id } 
                     }
                 }
             );
@@ -1712,7 +1712,7 @@ class exEmController implements Controller {
             successMiddleware(
                 {
                     message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', 'Country'),
-                    data: result // Return the result of the update operation
+                    data: result
                 },
                 request,
                 response,

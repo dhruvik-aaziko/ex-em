@@ -13,6 +13,7 @@ import { validateFile } from '../../../utils/validationFunctions';
 import { audioFileUploadHandle, fileUploadHandle, pdfFileUploadHandle, videoFileUploadHandle } from '../../../utils/fileUploadHandle';
 import adminModel from '../../admin/admin.model';
 import dealModel from './deal.model';
+import { deleteFromS3 } from '../../../utils/s3';
 
 
 const { MONGO_DB_EXEM } = getconfig();
@@ -77,7 +78,7 @@ class DealController {
     this.router.post(
       `${this.path}/updatenote`,
       authMiddleware,
-    //  this.validation.updateNoteValidation(),
+      //  this.validation.updateNoteValidation(),
       uploadHandler.fields([
         { name: "image", maxCount: 1 },
         { name: "video", maxCount: 1 },
@@ -117,6 +118,11 @@ class DealController {
 
       this.DealCompleteActivity);
 
+    this.router.post(
+      `${this.path}/allDealName`,
+      authMiddleware,
+      this.allDealName);
+
   }
 
 
@@ -133,9 +139,10 @@ class DealController {
 
       } = request.body;
 
-      //const notes = JSON.parse(request.body.notes);
-      //const text2 = notes.text;
-
+      if (request.body.notes) {
+        const notes = JSON.parse(request.body.notes);
+        var text2 = notes.text;
+      }
 
 
       let deal = await MongoService.findOne(MONGO_DB_EXEM, this.Deal, {
@@ -201,7 +208,7 @@ class DealController {
       console.log(req.body)
       const addDeal = await MongoService.create(MONGO_DB_EXEM, this.Deal, {
         insert: {
-          userAdminId:currentUserId,
+          userAdminId: currentUserId,
           dealOwner: dealOwner,
           dealName: dealName,
           accountName: accountName,
@@ -217,8 +224,7 @@ class DealController {
           campaignSource: campaignSource,
           assignedTo: assignedTo,
           notes: {
-            // text: request.body.notes.text,
-            text:"text2",
+            text: text2 || "",
             photo: imagePictures,
             video: videoData,
             audio: audioData,
@@ -243,7 +249,7 @@ class DealController {
     }
   };
 
-  
+
 
   public getDeals = async (
     request: Request,
@@ -257,7 +263,7 @@ class DealController {
       const req = request as RequestWithAdmin;
       const currentUserId = req.user._id;
 
-      const result = await MongoService.find(MONGO_DB_EXEM, this.Deal, {
+      const result = await MongoService.findOne(MONGO_DB_EXEM, this.Deal, {
         query: { _id: id }
       });
 
@@ -323,6 +329,7 @@ class DealController {
     }
   };
 
+  //delete s3done with 
   public deleteDeal = async (
     request: Request,
     response: Response,
@@ -330,17 +337,47 @@ class DealController {
   ) => {
     try {
       const { id } = request.params;
+
+      const deal = await MongoService.findOne(
+        MONGO_DB_EXEM,
+        this.Deal,
+        {
+          query: { _id: id }
+        }
+      );
+
+      if (!deal) {
+        return response.status(404).json({ message: 'Deal not found' });
+      }
+
+      const fileKeys = deal.notes?.flatMap((note: { audio: any[]; video: any[]; photo: any[]; documents: any[]; }) => [
+        ...note.audio.map((url: string) => url.split('/').slice(3).join('/')),
+        ...note.video.map((url: string) => url.split('/').slice(3).join('/')),
+        ...note.photo.map((url: string) => url.split('/').slice(3).join('/')),
+        ...note.documents.map((url: string) => url.split('/').slice(3).join('/'))
+      ]) || [];
+
+      // Include any additional files associated with the deal, if applicable
+      const dealFileKeys = deal.documents?.map((url: string) => url.split('/').slice(3).join('/')) || [];
+      const allFileKeys = [...fileKeys, ...dealFileKeys];
+
+      // Proceed to delete the deal
       const result = await MongoService.deleteOne(MONGO_DB_EXEM, this.Deal, {
         query: { _id: id }
       });
 
+      // Check if the deal was successfully deleted
       if (!result.deletedCount) {
-        return response.status(404).json({ message: 'deal not found' });
+        return response.status(404).json({ message: 'Deal not found' });
       }
+
+      // Delete files from S3
+      const deletePromises = allFileKeys.map(key => deleteFromS3(key));
+      await Promise.all(deletePromises);
 
       successMiddleware(
         {
-          message: SUCCESS_MESSAGES.COMMON.DELETE_SUCCESS.replace(':attribute', `deal`),
+          message: SUCCESS_MESSAGES.COMMON.DELETE_SUCCESS.replace(':attribute', 'deal'),
           data: result
         },
         request,
@@ -352,6 +389,7 @@ class DealController {
       next(error);
     }
   };
+
 
   //====================================================================================================================
 
@@ -447,7 +485,7 @@ class DealController {
     }
   };
 
-
+  //delete s3done with 
   public updateNote = async (
     request: Request,
     response: Response,
@@ -457,45 +495,52 @@ class DealController {
       const { text, dealId, noteId } = request.body;
       const files: any = request?.files;
 
-
       // Convert IDs to ObjectId  
-      const DealObjectId = new mongoose.Types.ObjectId(dealId);
+      const dealObjectId = new mongoose.Types.ObjectId(dealId);
       const noteObjectId = new mongoose.Types.ObjectId(noteId);
 
       // Validate the existence of the deal
       let deal = await MongoService.findOne(MONGO_DB_EXEM, this.Deal, {
-        query: { _id: DealObjectId }
+        query: { _id: dealObjectId }
       });
       if (!deal) {
         return response.status(404).json({ message: ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'deal') });
       }
 
-      // Validate and handle files
-      const fileImageDeals = [{ type: 'image', fileArray: ['image'] }];
-      const fileVideoDeals = [{ type: 'video', fileArray: ['video'] }];
-      const fileAudioDeals = [{ type: 'audio', fileArray: ['audio'] }];
-      const fileDocumentDeals = [{ type: 'document', fileArray: ['document'] }];
+      // Extract the existing note to find old files
+      const existingNote = deal.notes.find((note: any) => note._id.equals(noteObjectId));
+      if (!existingNote) {
+        return response.status(404).json({ message: 'Note not found' });
+      }
 
-      for (const file of files?.image || []) {
-        await validateFile(file, 'image', COMMON_CONSTANT.IMAGE_EXT_ARRAY);
-      }
-      for (const file of files?.video || []) {
-        await validateFile(file, 'video', COMMON_CONSTANT.VIDEO_EXT_ARRAY);
-      }
-      for (const file of files?.audio || []) {
-        await validateFile(file, 'audio', COMMON_CONSTANT.AUDIO_EXT_ARRAY);
-      }
-      for (const file of files?.document || []) {
-        await validateFile(file, 'document', COMMON_CONSTANT.DOCUMENT_EXT_ARRAY);
+      // Prepare keys for files to be deleted from S3
+      const oldFileKeys = [
+        ...existingNote.photo.map((url: string) => url.split('/').slice(3).join('/')),
+        ...existingNote.video.map((url: string) => url.split('/').slice(3).join('/')),
+        ...existingNote.audio.map((url: string) => url.split('/').slice(3).join('/')),
+        ...existingNote.documents.map((url: string) => url.split('/').slice(3).join('/'))
+      ];
+
+      // Validate and handle new files
+      const fileTasks = [
+        { type: 'image', fileArray: files?.image || [], validExtensions: COMMON_CONSTANT.IMAGE_EXT_ARRAY },
+        { type: 'video', fileArray: files?.video || [], validExtensions: COMMON_CONSTANT.VIDEO_EXT_ARRAY },
+        { type: 'audio', fileArray: files?.audio || [], validExtensions: COMMON_CONSTANT.AUDIO_EXT_ARRAY },
+        { type: 'document', fileArray: files?.document || [], validExtensions: COMMON_CONSTANT.DOCUMENT_EXT_ARRAY }
+      ];
+
+      // Validate each file type
+      for (const { type, fileArray, validExtensions } of fileTasks) {
+        for (const file of fileArray) {
+          await validateFile(file, type, validExtensions);
+        }
       }
 
       // Handle file uploads
-      const { imagePictures } = await fileUploadHandle(files, fileImageDeals, false);
-      const { videoData } = await videoFileUploadHandle(files, fileVideoDeals, false);
-      const { audioData } = await audioFileUploadHandle(files, fileAudioDeals, false);
-      const { documentData } = await pdfFileUploadHandle(files, fileDocumentDeals, false);
-
-
+      const { imagePictures } = await fileUploadHandle(files, [{ type: 'image', fileArray: ['image'] }], false);
+      const { videoData } = await videoFileUploadHandle(files, [{ type: 'video', fileArray: ['video'] }], false);
+      const { audioData } = await audioFileUploadHandle(files, [{ type: 'audio', fileArray: ['audio'] }], false);
+      const { documentData } = await pdfFileUploadHandle(files, [{ type: 'document', fileArray: ['document'] }], false);
 
       // Update the specific note in the notes array
       const result = await MongoService.findOneAndUpdate(
@@ -503,7 +548,7 @@ class DealController {
         this.Deal,
         {
           query: {
-            _id: DealObjectId,
+            _id: dealObjectId,
             'notes._id': noteObjectId
           },
           updateData: {
@@ -520,8 +565,12 @@ class DealController {
       );
 
       if (!result) {
-        return response.status(404).json({ message: 'deal or note not found' });
+        return response.status(404).json({ message: 'Deal or note not found' });
       }
+
+      // Delete old files from S3
+      const deletePromises = oldFileKeys.map(key => deleteFromS3(key));
+      await Promise.all(deletePromises);
 
       successMiddleware(
         {
@@ -533,10 +582,11 @@ class DealController {
         next
       );
     } catch (error) {
-      logger.error(`Error updating note: `);
+      logger.error(`Error updating note: ${error}`);
       next(error);
     }
   };
+
 
 
   public deleteNote = async (
@@ -545,16 +595,38 @@ class DealController {
     next: NextFunction
   ) => {
     try {
-      // Extract callId and noteId from request
+      // Extract dealId and noteId from request
       const { dealId, noteId } = request.body;
-
-
-
-      // Convert `callId` and `noteId` to ObjectId
+  
+      // Convert `dealId` and `noteId` to ObjectId
       const DealObjectId = new mongoose.Types.ObjectId(dealId);
       const noteObjectId = new mongoose.Types.ObjectId(noteId);
-
-      // Perform the update operation
+  
+      // First, find the deal to retrieve the note
+      const deal = await MongoService.findOne(MONGO_DB_EXEM, this.Deal, {
+        query: { _id: DealObjectId }
+      });
+  
+      // Handle case where no deal is found
+      if (!deal) {
+        return response.status(404).json({ message: 'Deal not found' });
+      }
+  
+      // Find the note to get the associated files
+      const noteToDelete = deal.notes.find((note: any) => note._id.equals(noteObjectId));
+      if (!noteToDelete) {
+        return response.status(404).json({ message: 'Note not found' });
+      }
+  
+      // Prepare keys for files to be deleted from S3
+      const fileKeys = [
+        ...noteToDelete.photo.map((url: string) => url.split('/').slice(3).join('/')),
+        ...noteToDelete.video.map((url: string) => url.split('/').slice(3).join('/')),
+        ...noteToDelete.audio.map((url: string) => url.split('/').slice(3).join('/')),
+        ...noteToDelete.documents.map((url: string) => url.split('/').slice(3).join('/'))
+      ];
+  
+      // Perform the delete operation on the notes array
       const result = await MongoService.findOneAndUpdate(
         MONGO_DB_EXEM,
         this.Deal,
@@ -564,16 +636,20 @@ class DealController {
           updateOptions: { new: true }
         }
       );
-
+  
       // Handle case where no document was found
       if (!result || result.matchedCount === 0) {
-        return response.status(404).json({ message: 'deal not found or note not found' });
+        return response.status(404).json({ message: 'Deal not found or note not found' });
       }
-
+  
+      // Delete files from S3
+      const deletePromises = fileKeys.map(key => deleteFromS3(key));
+      await Promise.all(deletePromises);
+  
       // Successful response
       successMiddleware(
         {
-          message: SUCCESS_MESSAGES.COMMON.DELETE_SUCCESS.replace(':attribute', `note`),
+          message: SUCCESS_MESSAGES.COMMON.DELETE_SUCCESS.replace(':attribute', 'note'),
           data: result
         },
         request,
@@ -585,8 +661,8 @@ class DealController {
       logger.error(`Error deleting note: ${error}`);
       next(error);
     }
-
-  }
+  };
+  
 
   public allUserDropdown = async (
     request: Request,
@@ -702,6 +778,52 @@ class DealController {
         query: queryCondition
 
       });
+
+      successMiddleware(
+        {
+          message: SUCCESS_MESSAGES.COMMON.FETCH_SUCCESS.replace(':attribute', `deal`),
+          data: result
+        },
+        request,
+        response,
+        next
+      );
+
+    } catch (error) {
+      logger.error(`Error fetching Deals: ${error}`);
+      next(error);
+    }
+  };
+
+
+
+  public allDealName = async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const req = request as RequestWithAdmin;
+
+      const result = await MongoService.aggregate(MONGO_DB_EXEM, this.Deal, [
+
+        {
+          $group: {
+            _id: "$dealName"
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            dealName: "$_id"
+          }
+        },
+        {
+          $sort: {
+            dealName: 1
+          }
+        }
+      ]);
 
       successMiddleware(
         {

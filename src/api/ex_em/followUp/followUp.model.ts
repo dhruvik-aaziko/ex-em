@@ -22,7 +22,8 @@ const followUpSchema: Schema = new mongoose.Schema({
     callPurpose: { type: String, required: true },
 
     notes: [{
-        text: { type: String, },
+                text: { type: String, default : "" },
+
         video: [{ type: String, default: [] }],
         photo: [{ type: String, default: [] }],
         audio: [{ type: String, default: [] }],

@@ -70,7 +70,7 @@ class taskValidation {
             body('dueDate')
                 .notEmpty()
                 .withMessage(ERROR_MESSAGES.COMMON.REQUIRED.replace(':attribute', 'dueDate'))
-                .isDate()
+                .isISO8601()
                 .withMessage(ERROR_MESSAGES.COMMON.STRING.replace(':attribute', 'dueDate')),
             body('relatedTo')
                 .notEmpty()
@@ -119,9 +119,9 @@ class taskValidation {
         validate([
             body('text')
                 .notEmpty()
-                .withMessage(ERROR_MESSAGES.COMMON.REQUIRED.replace(':attribute', 'companyName'))
+                .withMessage(ERROR_MESSAGES.COMMON.REQUIRED.replace(':attribute', 'text'))
                 .isString()
-                .withMessage(ERROR_MESSAGES.COMMON.STRING.replace(':attribute', 'companyName')),
+                .withMessage(ERROR_MESSAGES.COMMON.STRING.replace(':attribute', 'text')),
         ])
 
     updateNoteValidation = () =>
@@ -160,3 +160,4 @@ class taskValidation {
 }
 
 export default taskValidation;
+  
