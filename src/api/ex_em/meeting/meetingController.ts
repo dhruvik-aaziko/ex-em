@@ -155,8 +155,8 @@ class MeetingController {
       const result = await MongoService.create(MONGO_DB_EXEM, this.Meeting, {
         insert: {
           userAdminId: currentUserId, title: title, companyName: companyName, countryName: countryName, industry: industry, personName: personName,
-           phoneNo: phoneNo, emailID: emailID, notStarted: notStarted, position: position, dateTime: dateTime, host: host, location: location,
-            participants: participants, status: status,
+          phoneNo: phoneNo, emailID: emailID, notStarted: notStarted, position: position, dateTime: dateTime, host: host, location: location,
+          participants: participants, status: status,
           notes: {
             text: text2 || "",
             photo: imagePictures,
@@ -236,8 +236,8 @@ class MeetingController {
           query: { _id: id },
           updateData: {
             $set: {
-              title: title, companyName: companyName, countryName: countryName, industry: industry, personName: personName, phoneNo: phoneNo,
-              emailID: emailID, notStarted: notStarted, position: position, dateTime: dateTime, host: host, location: location, 
+              title: title, companyName: companyName, countryName: countryName, industry: industry, personName: personName,
+              phoneNo: phoneNo, emailID: emailID, notStarted: notStarted, position: position, dateTime: dateTime, host: host, location: location,
               participants: participants, status: status
             }
           },
