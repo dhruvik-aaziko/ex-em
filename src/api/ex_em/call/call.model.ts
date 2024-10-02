@@ -21,7 +21,7 @@ const callSchema: Schema = new mongoose.Schema({
     callPurpose: { type: String, required: true },
     callResult: { type: String, required: true },
     description: { type: String, required: false },
-    notes: [{
+    8: [{
         text: { type: String, default: "" },
         video: [{ type: String, default: [] }],
         photo: [{ type: String, default: [] }],

@@ -149,32 +149,60 @@ export function deleteFromS3(key: string): Promise<any> {
     });
   });
 }
-export function uploadToS3WithPrefix(data: UploadToS3WithPrefixData): Promise<any> {
-  const file = data.file;
-  const folderName = data.folderName;
-  const isLocalFile = data.isLocalFile;
-  const fileNamePrefix = data.fileNamePrefix;
-  const fileName = fileNamePrefix + '-' + Date.now() + path.extname(file.originalname);
-  let bodyData = file.buffer;
-  if (isLocalFile) {
-    bodyData = fs.readFileSync(file.path);
-  }
-  const params = {
-    Bucket: BUCKET_NAME,
-    Key: "aaziko/" + folderName + "/" + fileName,
-    Body: bodyData,
-    ACL: 'public-read', // Ensure ACL is set to public-read
-    ContentType: file.mimetype
-  };
-  return new Promise((resolve, reject) => {
-    s3bucket.upload(params, function (err: any, data: any) {
-      if (err) {
-        return reject(err);
-      }
-      return resolve(data);
-    });
-  });
-}
+
+// export function deleteFromS3(url: string): Promise<any> {
+//   // Extract the key from the full S3 URL
+//   const key = extractKeyFromUrl(url);
+
+//   const params = {
+//     Bucket: BUCKET_NAME,
+//     Key: key
+//   };
+  
+//   return new Promise((resolve, reject) => {
+//     console.log("Deleting from S3:", key);
+    
+//     s3bucket.deleteObject(params, function (err: any, data: any) {
+//       if (err) {
+//         return reject(err);
+//       }
+//       return resolve(data);
+//     });
+//   });
+// }
+
+// function extractKeyFromUrl(url: string): string {
+//   const urlParts = url.split('/');
+//   const bucketNameIndex = 3; // Adjust based on your URL structure
+//   return urlParts.slice(bucketNameIndex + 1).join('/'); // Join the parts back to form the key
+// }
+
+// export function uploadToS3WithPrefix(data: UploadToS3WithPrefixData): Promise<any> {
+//   const file = data.file;
+//   const folderName = data.folderName;
+//   const isLocalFile = data.isLocalFile;
+//   const fileNamePrefix = data.fileNamePrefix;
+//   const fileName = fileNamePrefix + '-' + Date.now() + path.extname(file.originalname);
+//   let bodyData = file.buffer;
+//   if (isLocalFile) {
+//     bodyData = fs.readFileSync(file.path);
+//   }
+//   const params = {
+//     Bucket: BUCKET_NAME,
+//     Key: "aaziko/" + folderName + "/" + fileName,
+//     Body: bodyData,
+//     ACL: 'public-read', // Ensure ACL is set to public-read
+//     ContentType: file.mimetype
+//   };
+//   return new Promise((resolve, reject) => {
+//     s3bucket.upload(params, function (err: any, data: any) {
+//       if (err) {
+//         return reject(err);
+//       }
+//       return resolve(data);
+//     });
+//   });
+// }
 export function uploadToS3WithCustomName(data: uploadToS3WithCustomNameData): Promise<any> {
   const file = data.file;
   const folderName = data.folderName;

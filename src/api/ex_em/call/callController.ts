@@ -89,12 +89,13 @@ class CallController {
     this.router.post(
       `${this.path}/updatenote`,
       authMiddleware,
-      uploadHandler.fields([
-        { name: "image", maxCount: 1 },
-        { name: "video", maxCount: 1 },
-        { name: "audio", maxCount: 1 },
-        { name: "document", maxCount: 1 }
-      ]),
+      // uploadHandler.fields([
+      //   { name: "image", maxCount: 1 },
+      //   { name: "video", maxCount: 1 },
+      //   { name: "audio", maxCount: 1 },
+      //   { name: "document", maxCount: 1 }
+      // ]),
+      uploadHandler.none(),
       this.updateNoteInCall
     );
 
@@ -534,6 +535,9 @@ class CallController {
       const { text, callId, noteId } = request.body;
       const files: any = request?.files;
 
+      console.log("this is update call body ",request.body);
+      
+
 
       // Convert IDs to ObjectId  
       const callObjectId = new mongoose.Types.ObjectId(callId);
@@ -548,45 +552,45 @@ class CallController {
       }
 
 
-      // Extract the existing note to delete old files
-      const existingNote = call.notes.find((note: { _id: { equals: (arg0: mongoose.Types.ObjectId) => any; }; }) => note._id.equals(noteObjectId));
-      const oldFileKeys = [
-        ...existingNote.photo.map((url: string) => url.split('/').slice(3).join('/')),
-        ...existingNote.audio.map((url: string) => url.split('/').slice(3).join('/')),
-        ...existingNote.video.map((url: string) => url.split('/').slice(3).join('/')),
-        ...existingNote.documents.map((url: string) => url.split('/').slice(3).join('/'))
-      ];
+      // // Extract the existing note to delete old files
+      // const existingNote = call.notes.find((note: { _id: { equals: (arg0: mongoose.Types.ObjectId) => any; }; }) => note._id.equals(noteObjectId));
+      // const oldFileKeys = [
+      //   ...existingNote.photo.map((url: string) => url.split('/').slice(3).join('/')),
+      //   ...existingNote.audio.map((url: string) => url.split('/').slice(3).join('/')),
+      //   ...existingNote.video.map((url: string) => url.split('/').slice(3).join('/')),
+      //   ...existingNote.documents.map((url: string) => url.split('/').slice(3).join('/'))
+      // ];
 
       // Validate and handle files
-      const fileImagecalls = [{ type: 'image', fileArray: ['image'] }];
-      const fileVideocalls = [{ type: 'video', fileArray: ['video'] }];
-      const fileAudiocalls = [{ type: 'audio', fileArray: ['audio'] }];
-      const fileDocumentcalls = [{ type: 'document', fileArray: ['document'] }];
+      // const fileImagecalls = [{ type: 'image', fileArray: ['image'] }];
+      // const fileVideocalls = [{ type: 'video', fileArray: ['video'] }];
+      // const fileAudiocalls = [{ type: 'audio', fileArray: ['audio'] }];
+      // const fileDocumentcalls = [{ type: 'document', fileArray: ['document'] }];
 
-      for (const file of files?.image || []) {
-        await validateFile(file, 'image', COMMON_CONSTANT.IMAGE_EXT_ARRAY);
-      }
-      for (const file of files?.video || []) {
-        await validateFile(file, 'video', COMMON_CONSTANT.VIDEO_EXT_ARRAY);
-      }
-      for (const file of files?.audio || []) {
-        await validateFile(file, 'audio', COMMON_CONSTANT.AUDIO_EXT_ARRAY);
-      }
-      for (const file of files?.document || []) {
-        await validateFile(file, 'document', COMMON_CONSTANT.DOCUMENT_EXT_ARRAY);
-      }
+      // for (const file of files?.image || []) {
+      //   await validateFile(file, 'image', COMMON_CONSTANT.IMAGE_EXT_ARRAY);
+      // }
+      // for (const file of files?.video || []) {
+      //   await validateFile(file, 'video', COMMON_CONSTANT.VIDEO_EXT_ARRAY);
+      // }
+      // for (const file of files?.audio || []) {
+      //   await validateFile(file, 'audio', COMMON_CONSTANT.AUDIO_EXT_ARRAY);
+      // }
+      // for (const file of files?.document || []) {
+      //   await validateFile(file, 'document', COMMON_CONSTANT.DOCUMENT_EXT_ARRAY);
+      // }
 
 
 
-      // Handle file uploads
-      const { imagePictures } = await fileUploadHandle(files, fileImagecalls, false);
-      const { videoData } = await videoFileUploadHandle(files, fileVideocalls, false);
-      const { audioData } = await audioFileUploadHandle(files, fileAudiocalls, false);
-      const { documentData } = await pdfFileUploadHandle(files, fileDocumentcalls, false);
+      // // Handle file uploads
+      // const { imagePictures } = await fileUploadHandle(files, fileImagecalls, false);
+      // const { videoData } = await videoFileUploadHandle(files, fileVideocalls, false);
+      // const { audioData } = await audioFileUploadHandle(files, fileAudiocalls, false);
+      // const { documentData } = await pdfFileUploadHandle(files, fileDocumentcalls, false);
 
       // Delete old files from S3
-      const deletePromises = oldFileKeys.map(key => deleteFromS3(key));
-      await Promise.all(deletePromises);
+      // const deletePromises = oldFileKeys.map(key => deleteFromS3(key));
+      // await Promise.all(deletePromises);
 
       // Update the specific note in the notes array
       const result = await MongoService.findOneAndUpdate(
@@ -600,10 +604,10 @@ class CallController {
           updateData: {
             $set: {
               'notes.$.text': text,
-              'notes.$.photo': imagePictures,
-              'notes.$.video': videoData,
-              'notes.$.audio': audioData,
-              'notes.$.documents': documentData
+              // 'notes.$.photo': imagePictures,
+              // 'notes.$.video': videoData,
+              // 'notes.$.audio': audioData,
+              // 'notes.$.documents': documentData
             }
           },
           updateOptions: { new: true }

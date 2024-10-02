@@ -545,7 +545,7 @@ class FollowUpController {
 
       // Handle case where no document was found
       if (!result || result.matchedCount === 0) {
-        return response.status(404).json({ message: 'FollowUp not found or note not found' });
+        return response.status(404).json({ message: 'FollowUp not    or note not found' });
       }
 
       // Delete files from S3

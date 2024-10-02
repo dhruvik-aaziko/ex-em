@@ -457,109 +457,247 @@ class MeetingController {
     request: Request,
     response: Response,
     next: NextFunction
-  ) => {
+) => {
     try {
-      // Extract the data from the request body
-      const { text, RescheduleAt, meetingId, noteId } = request.body;
+        // Extract the data from the request body
+        const { text, RescheduleAt, meetingId, noteId, image, video, audio, document } = request.body;
+        const meetingObjectId = new mongoose.Types.ObjectId(meetingId);
+        const noteObjectId = new mongoose.Types.ObjectId(noteId);
+        const files: any = request?.files;
+        console.log("this is body  ",request.body);
+        
+        console.log("this is new file ",files);
+        
 
-      const meetingObjectId = new mongoose.Types.ObjectId(meetingId);
-      const noteObjectId = new mongoose.Types.ObjectId(noteId);
-
-      const files: any = request?.files;
-
-
-
-      // Validate the existence of the meeting
-      let meeting = await MongoService.findOne(MONGO_DB_EXEM, this.Meeting, {
-        query: { _id: meetingObjectId }
-      });
-      if (!meeting) {
-        return response.status(404).json({ message: ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'meeting') });
-      }
-
-      // Extract the existing note to delete old files
-      const existingNote = meeting.notes.find((note: { _id: { equals: (arg0: mongoose.Types.ObjectId) => any; }; }) => note._id.equals(noteObjectId));
-      if (!existingNote) {
-        return response.status(404).json({ message: ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'note') });
-      }
-      const oldFileKeys = [
-        ...existingNote.photo.map((url: string) => url.split('/').slice(3).join('/')),
-        ...existingNote.audio.map((url: string) => url.split('/').slice(3).join('/')),
-        ...existingNote.video.map((url: string) => url.split('/').slice(3).join('/')),
-        ...existingNote.documents.map((url: string) => url.split('/').slice(3).join('/'))
-      ];
-
-      // Validate and handle files
-      const fileImageTasks = [{ type: 'image', fileArray: ['image'] }];
-      const fileVideoTasks = [{ type: 'video', fileArray: ['video'] }];
-      const fileAudioTasks = [{ type: 'audio', fileArray: ['audio'] }];
-      const fileDocumentTasks = [{ type: 'document', fileArray: ['document'] }];
-
-      for (const file of files?.image || []) {
-        await validateFile(file, 'image', COMMON_CONSTANT.IMAGE_EXT_ARRAY);
-      }
-      for (const file of files?.video || []) {
-        await validateFile(file, 'video', COMMON_CONSTANT.VIDEO_EXT_ARRAY);
-      }
-      for (const file of files?.audio || []) {
-        await validateFile(file, 'audio', COMMON_CONSTANT.AUDIO_EXT_ARRAY);
-      }
-      for (const file of files?.document || []) {
-        await validateFile(file, 'document', COMMON_CONSTANT.DOCUMENT_EXT_ARRAY);
-      }
-
-      // Handle file uploads
-      const { imagePictures } = await fileUploadHandle(files, fileImageTasks, false);
-      const { videoData } = await videoFileUploadHandle(files, fileVideoTasks, false);
-      const { audioData } = await audioFileUploadHandle(files, fileAudioTasks, false);
-      const { documentData } = await pdfFileUploadHandle(files, fileDocumentTasks, false);
-
-
-      const result = await MongoService.findOneAndUpdate(
-        MONGO_DB_EXEM,
-        this.Meeting,
-        {
-          query: {
-            _id: meetingObjectId,
-            'notes._id': noteObjectId
-          },
-          updateData: {
-            $set: {
-              'notes.$.text': text,
-              'notes.$.RescheduleAt': RescheduleAt,
-              'notes.$.photo': imagePictures,
-              'notes.$.video': videoData,
-              'notes.$.audio': audioData,
-              'notes.$.documents': documentData
-            }
-          },
-          updateOptions: { new: true }
+        // Validate the existence of the meeting
+        let meeting = await MongoService.findOne(MONGO_DB_EXEM, this.Meeting, {
+            query: { _id: meetingObjectId }
+        });
+        if (!meeting) {
+            return response.status(404).json({ message: ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'meeting') });
         }
-      );
 
-      const deletePromises = oldFileKeys.map(key => deleteFromS3(key));
-      await Promise.all(deletePromises);
-      // Check if the result is valid
-      if (!result) {
-        return response.status(404).json({ message: 'Contact info or note not found' });
-      }
+        // Extract the existing note
+        const existingNote = meeting.notes.find((note: { _id: { equals: (arg0: mongoose.Types.ObjectId) => any; }; }) => note._id.equals(noteObjectId));
+        if (!existingNote) {
+            return response.status(404).json({ message: ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'note') });
+        }
 
-      // Send success response
-      successMiddleware(
-        {
-          message: 'Note updated successfully',
-          data: result
-        },
-        request,
-        response,
-        next
-      );
+        const oldFileKeys = [
+            ...existingNote.photo.map((url: string) => url.split('/').slice(3).join('/')),
+            ...existingNote.audio.map((url: string) => url.split('/').slice(3).join('/')),
+            ...existingNote.video.map((url: string) => url.split('/').slice(3).join('/')),
+            ...existingNote.documents.map((url: string) => url.split('/').slice(3).join('/'))
+        ];
+
+        // Initialize upload data
+        let imagePictures = existingNote.photo;
+        let videoData = existingNote.video;
+        let audioData = existingNote.audio;
+        let documentData = existingNote.documents;
+
+        // Handle file uploads if new files are provided
+        if (files) {
+            // Validate and upload new files
+            if (files.image && files.image.length > 0) {
+                await Promise.all(files.image.map((file: any) => validateFile(file, 'image', COMMON_CONSTANT.IMAGE_EXT_ARRAY)));
+                const { imagePictures: newImages } = await fileUploadHandle(files, [{ type: 'image', fileArray: ['image'] }], false);
+                imagePictures = newImages; // Update if new images were uploaded
+            }
+            if (files.video && files.video.length > 0) {
+                await Promise.all(files.video.map((file: any) => validateFile(file, 'video', COMMON_CONSTANT.VIDEO_EXT_ARRAY)));
+                const { videoData: newVideos } = await videoFileUploadHandle(files, [{ type: 'video', fileArray: ['video'] }], false);
+                videoData = newVideos; // Update if new videos were uploaded
+            }
+            if (files.audio && files.audio.length > 0) {
+                await Promise.all(files.audio.map((file: any) => validateFile(file, 'audio', COMMON_CONSTANT.AUDIO_EXT_ARRAY)));
+                const { audioData: newAudios } = await audioFileUploadHandle(files, [{ type: 'audio', fileArray: ['audio'] }], false);
+                audioData = newAudios; // Update if new audio files were uploaded
+            }
+            if (files.document && files.document.length > 0) {
+                await Promise.all(files.document.map((file: any) => validateFile(file, 'document', COMMON_CONSTANT.DOCUMENT_EXT_ARRAY)));
+                const { documentData: newDocuments } = await pdfFileUploadHandle(files, [{ type: 'document', fileArray: ['document'] }], false);
+                documentData = newDocuments; // Update if new documents were uploaded
+            }
+        }
+
+        // Remove files that don't exist in the request body
+        if (!image) {
+            imagePictures.forEach(async (key: string) => await deleteFromS3(key)); // Delete from S3
+            imagePictures = []; // Clear database reference
+        }
+        if (!video) {
+            videoData.forEach(async (key: string) => await deleteFromS3(key)); // Delete from S3
+            videoData = []; // Clear database reference
+        }
+        if (!audio) {
+            audioData.forEach(async (key: string) => await deleteFromS3(key)); // Delete from S3
+            audioData = []; // Clear database reference
+        }
+        if (!document) {
+            documentData.forEach(async (key: string) => await deleteFromS3(key)); // Delete from S3
+            documentData = []; // Clear database reference
+        }
+
+        // Update the note in the database
+        const result = await MongoService.findOneAndUpdate(
+            MONGO_DB_EXEM,
+            this.Meeting,
+            {
+                query: {
+                    _id: meetingObjectId,
+                    'notes._id': noteObjectId
+                },
+                updateData: {
+                    $set: {
+                        'notes.$.text': text,
+                        'notes.$.RescheduleAt': RescheduleAt,
+                        'notes.$.photo': imagePictures,
+                        'notes.$.video': videoData,
+                        'notes.$.audio': audioData,
+                        'notes.$.documents': documentData
+                    }
+                },
+                updateOptions: { new: true }
+            }
+        );
+
+        // Check if the result is valid
+        if (!result) {
+            return response.status(404).json({ message: 'Contact info or note not found' });
+        }
+
+        // Send success response
+        successMiddleware(
+            {
+                message: 'Note updated successfully',
+                data: result
+            },
+            request,
+            response,
+            next
+        );
     } catch (error) {
-      // Log error and pass to the error handler middleware
-      logger.error(`Error updating note: ${error}`);
-      next(error);
+        // Log error and pass to the error handler middleware
+        logger.error(`Error updating note: ${error}`);
+        next(error);
     }
-  };
+};
+
+
+
+
+  // public updateNote = async (
+  //   request: Request,
+  //   response: Response,
+  //   next: NextFunction
+  // ) => {
+  //   try {
+  //     // Extract the data from the request body
+  //     const { text, RescheduleAt, meetingId, noteId } = request.body;
+
+  //     console.log("this is body ",request.body)
+  //     const meetingObjectId = new mongoose.Types.ObjectId(meetingId);
+  //     const noteObjectId = new mongoose.Types.ObjectId(noteId);
+
+  //     const files: any = request?.files;
+
+  //     console.log("this is file ",files);
+
+
+
+
+  //     // Validate the existence of the meeting
+  //     let meeting = await MongoService.findOne(MONGO_DB_EXEM, this.Meeting, {
+  //       query: { _id: meetingObjectId }
+  //     });
+  //     if (!meeting) {
+  //       return response.status(404).json({ message: ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'meeting') });
+  //     }
+
+  //     // Extract the existing note to delete old files
+  //     const existingNote = meeting.notes.find((note: { _id: { equals: (arg0: mongoose.Types.ObjectId) => any; }; }) => note._id.equals(noteObjectId));
+  //     if (!existingNote) {
+  //       return response.status(404).json({ message: ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'note') });
+  //     }
+  //     const oldFileKeys = [
+  //       ...existingNote.photo.map((url: string) => url.split('/').slice(3).join('/')),
+  //       ...existingNote.audio.map((url: string) => url.split('/').slice(3).join('/')),
+  //       ...existingNote.video.map((url: string) => url.split('/').slice(3).join('/')),
+  //       ...existingNote.documents.map((url: string) => url.split('/').slice(3).join('/'))
+  //     ];
+
+  //     // Validate and handle files
+  //     const fileImageTasks = [{ type: 'image', fileArray: ['image'] }];
+  //     const fileVideoTasks = [{ type: 'video', fileArray: ['video'] }];
+  //     const fileAudioTasks = [{ type: 'audio', fileArray: ['audio'] }];
+  //     const fileDocumentTasks = [{ type: 'document', fileArray: ['document'] }];
+
+  //     for (const file of files?.image || []) {
+  //       await validateFile(file, 'image', COMMON_CONSTANT.IMAGE_EXT_ARRAY);
+  //     }
+  //     for (const file of files?.video || []) {
+  //       await validateFile(file, 'video', COMMON_CONSTANT.VIDEO_EXT_ARRAY);
+  //     }
+  //     for (const file of files?.audio || []) {
+  //       await validateFile(file, 'audio', COMMON_CONSTANT.AUDIO_EXT_ARRAY);
+  //     }
+  //     for (const file of files?.document || []) {
+  //       await validateFile(file, 'document', COMMON_CONSTANT.DOCUMENT_EXT_ARRAY);
+  //     }
+
+  //     // Handle file uploads
+  //     const { imagePictures } = await fileUploadHandle(files, fileImageTasks, false);
+  //     const { videoData } = await videoFileUploadHandle(files, fileVideoTasks, false);
+  //     const { audioData } = await audioFileUploadHandle(files, fileAudioTasks, false);
+  //     const { documentData } = await pdfFileUploadHandle(files, fileDocumentTasks, false);
+
+
+  //     const result = await MongoService.findOneAndUpdate(
+  //       MONGO_DB_EXEM,
+  //       this.Meeting,
+  //       {
+  //         query: {
+  //           _id: meetingObjectId,
+  //           'notes._id': noteObjectId
+  //         },
+  //         updateData: {
+  //           $set: {
+  //             'notes.$.text': text,
+  //             'notes.$.RescheduleAt': RescheduleAt,
+  //             'notes.$.photo': imagePictures,
+  //             'notes.$.video': videoData,
+  //             'notes.$.audio': audioData,
+  //             'notes.$.documents': documentData
+  //           }
+  //         },
+  //         updateOptions: { new: true }
+  //       }
+  //     );
+
+  //     const deletePromises = oldFileKeys.map(key => deleteFromS3(key));
+  //     await Promise.all(deletePromises);
+  //     // Check if the result is valid
+  //     if (!result) {
+  //       return response.status(404).json({ message: 'Contact info or note not found' });
+  //     }
+
+  //     // Send success response
+  //     successMiddleware(
+  //       {
+  //         message: 'Note updated successfully',
+  //         data: result
+  //       },
+  //       request,
+  //       response,
+  //       next
+  //     );
+  //   } catch (error) {
+  //     // Log error and pass to the error handler middleware
+  //     logger.error(`Error updating note: ${error}`);
+  //     next(error);
+  //   }
+  // };
 
 
   public deleteNote = async (

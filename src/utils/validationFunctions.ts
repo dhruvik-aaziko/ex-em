@@ -123,7 +123,7 @@ const validateFile = async (
   allowedExtension: string[],
   // maxSizeInMb?: number,
 ) => {
-  let errorMessage = '';
+  let errorMessage = '';  
   let isValidFile = true;
   // responseObj.statusCode = STATUS_CODE.BAD_REQUEST
 

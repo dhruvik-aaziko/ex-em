@@ -17,7 +17,10 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 
 const taskSchema: Schema = new mongoose.Schema({
+ 
 
+
+    
     userAdminId: { type: mongoose.Schema.Types.ObjectId, ref: 'admin' },
 
     taskOwner: { type: String, require: true },
