@@ -230,7 +230,7 @@ class adminController implements Controller {
     }
 
   };
-//change
+  //change
   private adminLoggingIn = async (
     request: Request,
     response: Response,
@@ -247,18 +247,18 @@ class adminController implements Controller {
         response.statusCode = STATUS_CODE.NOT_FOUND;
         throw new Error(ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'Admin'));
       }
-   console.log(admin);
-   
+      console.log(admin);
+
       const chekAdminLogin = await MongoService.findOne(MONGO_DB_EXEM, this.Admin, {
         query: { _id: admin._id },
         select: 'isActive'
       });
 
-      console.log("check status", chekAdminLogin)
-      if (chekAdminLogin.isActive === true) {
-        response.statusCode = STATUS_CODE.BAD_REQUEST;
-        throw new Error(ERROR_MESSAGES.ALREADY_LOGIN.replace(':attribute', 'admin'));
-      }
+      // console.log("check status", chekAdminLogin)
+      // if (chekAdminLogin.isActive === true) {
+      //   response.statusCode = STATUS_CODE.BAD_REQUEST;
+      //   throw new Error(ERROR_MESSAGES.ALREADY_LOGIN.replace(':attribute', 'admin'));
+      // }
 
       const isPasswordMatching = await bcrypt.compare(password, admin.password);
       if (!isPasswordMatching) {
@@ -269,8 +269,10 @@ class adminController implements Controller {
       const token = await commonUtils.createNeverExpireToken(admin._id);
 
       await MongoService.findOneAndUpdate(MONGO_DB_EXEM, this.Admin, {
+
         query: { _id: admin._id },
         updateData: { $set: { token: token, isActive: true } }
+
       })
 
       const responseData = {
@@ -426,7 +428,7 @@ class adminController implements Controller {
         response.statusCode = STATUS_CODE.BAD_REQUEST;
         throw new Error(ERROR_MESSAGES.COMMON.NOT_FOUND.replace(':attribute', 'admin'));
       }
-      
+
 
       const adminData: Admin = await MongoService.findOneAndUpdate(MONGO_DB_EXEM, this.Admin, {
         query: { _id: request.params.id },
@@ -648,12 +650,12 @@ class adminController implements Controller {
     try {
       const req = request as RequestWithAdmin;
       const adminId = req.user._id;
-      
+
       await MongoService.findOneAndUpdate(MONGO_DB_EXEM, this.Admin, {
         query: { _id: adminId },
         updateData: { token: "", isActive: false } // Ensure isActive is a boolean
       });
-      
+
       // const adminData: Admin = await MongoService.findOneAndUpdate(MONGO_DB_EXEM, this.Admin, {
       //   query: { _id: request.params.id },
       //   updateData: {

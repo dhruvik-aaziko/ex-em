@@ -45,7 +45,7 @@ class DealController {
       this.createDeal);
 
     this.router.post(
-      `${this.path}/getDeals/:id`,
+      `${this.path}/getDeals`,
       authMiddleware,
       this.getDeals);
 
@@ -104,7 +104,7 @@ class DealController {
 
 
 
-    //==== OPEN ACTIVITY =====================================================================
+    //==== OPEN ACTIVITY ===================================================================
 
     this.router.post(
       `${this.path}/DealOpenActivity`,
@@ -224,7 +224,7 @@ class DealController {
           campaignSource: campaignSource,
           assignedTo: assignedTo,
           notes: {
-            text: text2 || "",
+            text: text2,
             photo: imagePictures,
             video: videoData,
             audio: audioData,
@@ -263,8 +263,8 @@ class DealController {
       const req = request as RequestWithAdmin;
       const currentUserId = req.user._id;
 
-      const result = await MongoService.findOne(MONGO_DB_EXEM, this.Deal, {
-        query: { _id: id }
+      const result = await MongoService.find(MONGO_DB_EXEM, this.Deal, {
+        query: {  }
       });
 
       successMiddleware(

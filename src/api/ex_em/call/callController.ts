@@ -106,7 +106,7 @@ class CallController {
       authMiddleware,
       this.deleteNoteFromCall); // Delete a note
 
-    //===============================================================================================
+    // ===============================================================================================
 
     this.router.post(
       `${this.path}/callOpenActivity`,
@@ -389,16 +389,16 @@ class CallController {
       }
 
       // Gather all file URLs from the notes
-      const fileKeys = call.notes.flatMap((note: { audio: any[]; video: any[]; photo: any[]; documents: any[]; }) => [
-        ...note.audio.map((url: string) => url.split('/').slice(3).join('/')),
-        ...note.video.map((url: string) => url.split('/').slice(3).join('/')),
-        ...note.photo.map((url: string) => url.split('/').slice(3).join('/')),
-        ...note.documents.map((url: string) => url.split('/').slice(3).join('/'))
-      ]);
+      // const fileKeys = call.notes.flatMap((note: { audio: any[]; video: any[]; photo: any[]; documents: any[]; }) => [
+      //   ...note.audio.map((url: string) => url.split('/').slice(3).join('/')),
+      //   ...note.video.map((url: string) => url.split('/').slice(3).join('/')),
+      //   ...note.photo.map((url: string) => url.split('/').slice(3).join('/')),
+      //   ...note.documents.map((url: string) => url.split('/').slice(3).join('/'))
+      // ]);
 
       // Include voiceRecording files
-      const voiceRecordingKeys = call.voiceRecording.map((url: string) => url.split('/').slice(3).join('/'));
-      const allFileKeys = [...fileKeys, ...voiceRecordingKeys];
+      // const voiceRecordingKeys = call.voiceRecording.map((url: string) => url.split('/').slice(3).join('/'));
+      // const allFileKeys = [ ...voiceRecordingKeys];
 
       // Proceed to delete the call
       const result = await MongoService.deleteOne(MONGO_DB_EXEM, this.Call, {
@@ -411,8 +411,8 @@ class CallController {
       }
 
       // Delete files from S3
-      const deletePromises = allFileKeys.map(key => deleteFromS3(key));
-      await Promise.all(deletePromises);
+      // const deletePromises = allFileKeys.map(key => deleteFromS3(key));
+      // await Promise.all(deletePromises);
 
       successMiddleware(
         {
@@ -666,13 +666,13 @@ class CallController {
       // Extract the note to be deleted
       const noteToDelete = task.notes.find((note: any) => note._id.equals(noteObjectId));
 
-      // Prepare to delete files from S3 by extracting keys
-      const fileKeys = [
-        ...noteToDelete.photo.map((url: string) => url.split('/').slice(3).join('/')),
-        ...noteToDelete.audio.map((url: string) => url.split('/').slice(3).join('/')),
-        ...noteToDelete.video.map((url: string) => url.split('/').slice(3).join('/')),
-        ...noteToDelete.documents.map((url: string) => url.split('/').slice(3).join('/'))
-      ];
+      // // Prepare to delete files from S3 by extracting keys
+      // const fileKeys = [
+      //   ...noteToDelete.photo.map((url: string) => url.split('/').slice(3).join('/')),
+      //   ...noteToDelete.audio.map((url: string) => url.split('/').slice(3).join('/')),
+      //   ...noteToDelete.video.map((url: string) => url.split('/').slice(3).join('/')),
+      //   ...noteToDelete.documents.map((url: string) => url.split('/').slice(3).join('/'))
+      // ];
 
       // Perform the update operation
       const result = await MongoService.findOneAndUpdate(
@@ -691,8 +691,8 @@ class CallController {
       }
 
       // Delete files from S3
-      const deletePromises = fileKeys.map(key => deleteFromS3(key));
-      await Promise.all(deletePromises);
+      // const deletePromises = fileKeys.map(key => deleteFromS3(key));
+      // await Promise.all(deletePromises);
 
       // Successful response
       successMiddleware(
